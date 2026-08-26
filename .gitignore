@@ -26,8 +26,12 @@ ENV/
 # =========================
 instance/
 *.db
+*.sqlite
 *.sqlite3
 *.log
+flask_session/
+uploads/
+*.exe
 
 # Flask environment variables
 .env

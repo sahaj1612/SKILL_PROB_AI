@@ -2,108 +2,139 @@
 class InterviewManager {
     constructor() {
         this.currentQuestionIndex = 0;
-        this.questions = [];
+        this.totalQuestions = 0;
+        this.currentQuestion = null;
         this.sessionId = document.getElementById('session-id')?.value;
         this.timerInterval = null;
         this.timeLeft = 120; // 2 minutes default
+        this.totalTime = 120;
         
         this.init();
     }
     
     init() {
-        this.loadQuestions();
         this.setupEventListeners();
-        this.startTimer();
+        this.loadInitialQuestion();
     }
     
-    async loadQuestions() {
+    setupEventListeners() {
+        // Submit answer
+        document.getElementById('submit-answer')?.addEventListener('click', () => this.submitAnswer());
+        
+        // Skip question
+        document.getElementById('skip-question')?.addEventListener('click', () => this.skipQuestion());
+        
+        // Finish interview
+        document.getElementById('finish-interview')?.addEventListener('click', () => this.finishInterview());
+        
+        // Next question
+        document.getElementById('next-question-btn')?.addEventListener('click', () => this.nextQuestion());
+        
+        // Timer controls
+        document.getElementById('start-timer')?.addEventListener('click', () => this.startTimer());
+        document.getElementById('stop-timer')?.addEventListener('click', () => this.stopTimer());
+    }
+    
+    async loadInitialQuestion() {
         try {
             const response = await fetch('/api/next-question', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'get_current' })
             });
             
             const data = await response.json();
             
             if (data.status === 'success') {
+                this.currentQuestionIndex = data.current_index;
+                this.totalQuestions = data.total_questions;
                 this.displayQuestion(data.question);
-                this.questions.push(data.question);
             } else if (data.status === 'completed') {
                 this.showCompletionMessage();
+            } else {
+                console.error('Failed to load initial question:', data.message);
             }
         } catch (error) {
-            console.error('Error loading questions:', error);
+            console.error('Error loading initial question:', error);
         }
     }
     
     displayQuestion(question) {
+        if (!question) return;
+        this.currentQuestion = question;
+
         // Update question text
-        document.getElementById('question-text').textContent = question.question_text;
+        const questionTextEl = document.getElementById('question-text');
+        if (questionTextEl) questionTextEl.textContent = question.question_text;
         
         // Update question ID
-        document.getElementById('current-question-id').value = question.id;
+        const questionIdEl = document.getElementById('current-question-id');
+        if (questionIdEl) questionIdEl.value = question.id;
         
         // Update question counter
-        document.getElementById('question-counter').textContent = 
-            `Question ${this.currentQuestionIndex + 1} of ${this.questions.length}`;
+        const counterEl = document.getElementById('question-counter');
+        if (counterEl) {
+            counterEl.textContent = `Question ${this.currentQuestionIndex + 1} of ${this.totalQuestions || 1}`;
+        }
         
         // Update question tags
         const typeTag = document.getElementById('question-type');
         const difficultyTag = document.getElementById('question-difficulty');
         
-        typeTag.textContent = question.question_type.charAt(0).toUpperCase() + question.question_type.slice(1);
-        typeTag.className = `px-3 py-1 rounded-full text-sm ${
-            question.question_type === 'technical' ? 'bg-blue-100 text-blue-800' :
-            question.question_type === 'behavioral' ? 'bg-green-100 text-green-800' :
-            question.question_type === 'situational' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-purple-100 text-purple-800'
-        }`;
+        const qType = question.question_type || 'technical';
+        const qDiff = question.difficulty || 'medium';
         
-        difficultyTag.textContent = question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1);
-        difficultyTag.className = `px-3 py-1 rounded-full text-sm ${
-            question.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-            question.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-red-100 text-red-800'
-        }`;
+        if (typeTag) {
+            typeTag.textContent = qType.charAt(0).toUpperCase() + qType.slice(1);
+            typeTag.className = `px-3 py-1 rounded-full text-sm ${
+                qType === 'technical' ? 'bg-blue-100 text-blue-800' :
+                qType === 'behavioral' ? 'bg-green-100 text-green-800' :
+                qType === 'situational' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-purple-100 text-purple-800'
+            }`;
+        }
         
-        // Set timer based on question
+        if (difficultyTag) {
+            difficultyTag.textContent = qDiff.charAt(0).toUpperCase() + qDiff.slice(1);
+            difficultyTag.className = `px-3 py-1 rounded-full text-sm ${
+                qDiff === 'easy' ? 'bg-green-100 text-green-800' :
+                qDiff === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+            }`;
+        }
+        
+        // Reset timer based on question
         this.timeLeft = question.time_allocated || 120;
+        this.totalTime = this.timeLeft;
         this.updateTimerDisplay();
+        this.startTimer();
         
-        // Clear previous answer
-        document.getElementById('answer-text').value = '';
+        // Clear previous answer and speech transcript
+        const answerTextarea = document.getElementById('answer-text');
+        if (answerTextarea) answerTextarea.value = '';
+        
         if (window.speechManager) {
+            window.speechManager.stop();
             window.speechManager.clearTranscript();
         }
         
-        // Hide feedback and show question
-        document.getElementById('feedback-area').classList.add('hidden');
-    }
-    
-    setupEventListeners() {
-        // Submit answer
-        document.getElementById('submit-answer').addEventListener('click', () => this.submitAnswer());
-        
-        // Skip question
-        document.getElementById('skip-question').addEventListener('click', () => this.skipQuestion());
-        
-        // Finish interview
-        document.getElementById('finish-interview').addEventListener('click', () => this.finishInterview());
-        
-        // Next question
-        document.getElementById('next-question-btn').addEventListener('click', () => this.nextQuestion());
-        
-        // Timer controls
-        document.getElementById('start-timer').addEventListener('click', () => this.startTimer());
-        document.getElementById('stop-timer').addEventListener('click', () => this.stopTimer());
+        // Hide feedback area and make sure answer inputs are enabled
+        const feedbackArea = document.getElementById('feedback-area');
+        if (feedbackArea) feedbackArea.classList.add('hidden');
+
+        // Reset submit button state
+        const submitBtn = document.getElementById('submit-answer');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Submit Answer';
+        }
     }
     
     startTimer() {
         this.stopTimer();
         
-        const timerDisplay = document.getElementById('timer-display');
         const progressCircle = document.getElementById('progress-circle');
-        const totalTime = this.timeLeft;
+        const total = this.totalTime || 120;
         
         this.timerInterval = setInterval(() => {
             if (this.timeLeft <= 0) {
@@ -116,10 +147,11 @@ class InterviewManager {
             this.updateTimerDisplay();
             
             // Update progress circle
-            const circumference = 326.56;
-            const offset = circumference - (this.timeLeft / totalTime) * circumference;
-            progressCircle.style.strokeDashoffset = offset;
-            
+            if (progressCircle) {
+                const circumference = 326.56;
+                const offset = circumference - (this.timeLeft / total) * circumference;
+                progressCircle.style.strokeDashoffset = offset;
+            }
         }, 1000);
     }
     
@@ -132,34 +164,49 @@ class InterviewManager {
     
     updateTimerDisplay() {
         const timerDisplay = document.getElementById('timer-display');
+        if (!timerDisplay) return;
         const minutes = Math.floor(this.timeLeft / 60);
         const seconds = this.timeLeft % 60;
         timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
     
     async submitAnswer() {
+        // Stop speech recognition if listening
+        if (window.speechManager && window.speechManager.isListening) {
+            window.speechManager.stop();
+        }
+        
         this.stopTimer();
 
-        const questionId = document.getElementById('current-question-id').value;
-        let answerText = document.getElementById('answer-text').value;
-        const transcript = window.speechManager ? window.speechManager.getTranscript() : '';
-        const duration = 120 - this.timeLeft; // Time spent on answer
+        const questionId = document.getElementById('current-question-id')?.value;
+        const typedAnswer = (document.getElementById('answer-text')?.value || '').trim();
+        const speechTranscript = window.speechManager ? window.speechManager.getTranscript().trim() : '';
+        const duration = Math.max(1, (this.totalTime || 120) - this.timeLeft);
 
-        // Combine typed answer and speech transcript if both exist
-        if (answerText.trim() && transcript.trim()) {
-            answerText = answerText.trim() + ' ' + transcript.trim();
-        } else if (transcript.trim()) {
-            answerText = transcript.trim();
+        // Combine typed answer and speech transcript cleanly
+        let combinedAnswer = '';
+        if (typedAnswer && speechTranscript) {
+            if (typedAnswer.includes(speechTranscript)) {
+                combinedAnswer = typedAnswer;
+            } else if (speechTranscript.includes(typedAnswer)) {
+                combinedAnswer = speechTranscript;
+            } else {
+                combinedAnswer = typedAnswer + '\n' + speechTranscript;
+            }
+        } else {
+            combinedAnswer = typedAnswer || speechTranscript;
         }
 
-        if (!answerText.trim()) {
-            alert('Please provide an answer before submitting. Please type or speak your answer.');
+        if (!combinedAnswer.trim()) {
+            alert('Please provide an answer before submitting. You can type or speak your answer.');
             return;
         }
         
         const submitBtn = document.getElementById('submit-answer');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing...';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing...';
+        }
         
         try {
             const response = await fetch('/api/analyze-answer', {
@@ -167,8 +214,8 @@ class InterviewManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     question_id: questionId,
-                    answer_text: answerText,
-                    transcript: transcript,
+                    answer_text: combinedAnswer,
+                    transcript: speechTranscript || combinedAnswer,
                     duration: duration
                 })
             });
@@ -177,13 +224,17 @@ class InterviewManager {
             
             if (data.status === 'success') {
                 this.displayFeedback(data.analysis, data.next_question_available);
+            } else {
+                alert(data.message || 'Error analyzing answer. Please try again.');
             }
         } catch (error) {
             console.error('Error submitting answer:', error);
             alert('Error submitting answer. Please try again.');
         } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Submit Answer';
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Submit Answer';
+            }
         }
     }
     
@@ -192,6 +243,8 @@ class InterviewManager {
         const feedbackContent = document.getElementById('feedback-content');
         const nextBtn = document.getElementById('next-question-btn');
         
+        if (!feedbackArea || !feedbackContent) return;
+
         // Build feedback HTML
         let feedbackHTML = `
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -244,41 +297,83 @@ class InterviewManager {
         
         feedbackContent.innerHTML = feedbackHTML;
         
-        // Update next button text
-        if (hasNextQuestion) {
-            nextBtn.innerHTML = 'Next Question <i class="fas fa-arrow-right ml-2"></i>';
-        } else {
-            nextBtn.innerHTML = 'Continue to Coding Test <i class="fas fa-arrow-right ml-2"></i>';
-            nextBtn.onclick = () => {
-                window.location.href = '/coding-test';
-            };
+        // Update next button text and action
+        if (nextBtn) {
+            if (hasNextQuestion) {
+                nextBtn.innerHTML = 'Next Question <i class="fas fa-arrow-right ml-2"></i>';
+                nextBtn.onclick = () => this.nextQuestion();
+            } else {
+                nextBtn.innerHTML = 'Continue to Coding Test <i class="fas fa-arrow-right ml-2"></i>';
+                nextBtn.onclick = () => {
+                    window.location.href = '/coding-test';
+                };
+            }
         }
         
-        // Show feedback area
+        // Show feedback area and scroll into view smoothly
         feedbackArea.classList.remove('hidden');
+        feedbackArea.scrollIntoView({ behavior: 'smooth' });
     }
     
-    skipQuestion() {
-        if (confirm('Skip this question?')) {
-            this.nextQuestion();
+    async skipQuestion() {
+        if (!confirm('Are you sure you want to skip this question?')) {
+            return;
         }
-    }
-    
-    async nextQuestion() {
+
+        if (window.speechManager) {
+            window.speechManager.stop();
+            window.speechManager.clearTranscript();
+        }
+        this.stopTimer();
+
         try {
-            const response = await fetch('/api/next-question', {
+            const response = await fetch('/api/skip-question', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question_id: document.getElementById('current-question-id')?.value })
             });
 
             const data = await response.json();
 
             if (data.status === 'success') {
-                this.currentQuestionIndex = data.current_index + 1; // Sync with server
+                this.currentQuestionIndex = data.current_index;
+                this.totalQuestions = data.total_questions;
                 this.displayQuestion(data.question);
-                this.questions.push(data.question);
             } else if (data.status === 'completed') {
                 this.showCompletionMessage();
+            } else {
+                alert(data.message || 'Unable to skip question.');
+            }
+        } catch (error) {
+            console.error('Error skipping question:', error);
+            alert('Error skipping question. Please try again.');
+        }
+    }
+    
+    async nextQuestion() {
+        if (window.speechManager) {
+            window.speechManager.stop();
+            window.speechManager.clearTranscript();
+        }
+        this.stopTimer();
+
+        try {
+            const response = await fetch('/api/next-question', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'advance' })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                this.currentQuestionIndex = data.current_index;
+                this.totalQuestions = data.total_questions;
+                this.displayQuestion(data.question);
+            } else if (data.status === 'completed') {
+                this.showCompletionMessage();
+            } else {
+                alert(data.message || 'No more questions available.');
             }
         } catch (error) {
             console.error('Error loading next question:', error);
@@ -292,6 +387,10 @@ class InterviewManager {
     
     finishInterview() {
         if (confirm('Are you sure you want to finish the interview? This will end the session.')) {
+            if (window.speechManager) {
+                window.speechManager.stop();
+            }
+            this.stopTimer();
             window.location.href = '/feedback';
         }
     }

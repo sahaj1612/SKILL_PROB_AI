@@ -1,4 +1,8 @@
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except Exception as e:
+    print(f"WARNING: Could not import google.generativeai ({e}). Running in Mock/Fallback mode.")
+    genai = None
 import json
 import re
 from textblob import TextBlob
@@ -14,11 +18,15 @@ except LookupError:
 
 class AIProcessor:
     def __init__(self):
+        self.model = None
         if not Config.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not set in environment variables")
-        
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
+            print("WARNING: GEMINI_API_KEY is not configured. AI functions will use fallback mock responses.")
+        else:
+            try:
+                genai.configure(api_key=Config.GEMINI_API_KEY)
+                self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
+            except Exception as e:
+                print(f"WARNING: Failed to configure Gemini API: {e}. Falling back to mock responses.")
     
     def extract_text_from_resume(self, resume_text):
         """Extract key information from resume text"""

@@ -164,20 +164,52 @@ def start_interview():
 
 @app.route('/api/next-question', methods=['POST'])
 def next_question():
-    """Get next question"""
-    current_index = session.get('current_question_index', 0)
+    """Get question (current, advance to next, or skip)"""
+    data = request.get_json(silent=True) or {}
+    action = data.get('action', 'get_current')  # 'get_current', 'advance', 'skip'
+
     questions = session.get('questions', [])
+    current_index = session.get('current_question_index', 0)
+
+    if action in ('advance', 'skip'):
+        current_index += 1
+        session['current_question_index'] = current_index
 
     if current_index >= len(questions):
         return jsonify({
             'status': 'completed',
-            'message': 'All questions completed'
+            'message': 'All questions completed',
+            'current_index': current_index,
+            'total_questions': len(questions)
         })
 
     question = questions[current_index]
 
-    # Update session index for next call
-    session['current_question_index'] = current_index + 1
+    return jsonify({
+        'status': 'success',
+        'question': question,
+        'current_index': current_index,
+        'total_questions': len(questions)
+    })
+
+@app.route('/api/skip-question', methods=['POST'])
+def skip_question():
+    """Skip current question and advance to next"""
+    questions = session.get('questions', [])
+    current_index = session.get('current_question_index', 0)
+
+    current_index += 1
+    session['current_question_index'] = current_index
+
+    if current_index >= len(questions):
+        return jsonify({
+            'status': 'completed',
+            'message': 'All questions completed',
+            'current_index': current_index,
+            'total_questions': len(questions)
+        })
+
+    question = questions[current_index]
 
     return jsonify({
         'status': 'success',
@@ -189,64 +221,77 @@ def next_question():
 @app.route('/api/analyze-answer', methods=['POST'])
 def analyze_answer():
     """Analyze candidate's answer"""
-    data = request.json
+    data = request.json or {}
     question_id = data.get('question_id')
     answer_text = data.get('answer_text', '')
     transcript = data.get('transcript', '')
     duration = data.get('duration', 0)
     
-    # Get current question
-    current_index = session.get('current_question_index', 0)
     questions = session.get('questions', [])
+    current_index = session.get('current_question_index', 0)
     
-    if current_index < len(questions):
+    # Find matching question by question_id or fallback to current_question_index
+    current_question = None
+    question_idx = current_index
+    if question_id:
+        for idx, q in enumerate(questions):
+            if str(q.get('id')) == str(question_id):
+                current_question = q
+                question_idx = idx
+                break
+
+    if current_question is None and 0 <= current_index < len(questions):
         current_question = questions[current_index]
-        
+        question_idx = current_index
+
+    if current_question:
         # Analyze answer
         analysis = ai_processor.analyze_answer(
-            question=current_question['question_text'],
+            question=current_question.get('question_text', ''),
             answer=answer_text,
             transcript=transcript
         )
         
         # Save answer
         answer_data = {
-            'question_id': question_id,
+            'question_id': current_question.get('id', question_id),
             'session_id': session.get('session_id'),
             'answer_text': answer_text,
             'transcript': transcript,
             'duration': duration,
-            'grammar_score': analysis['grammar_score'],
-            'relevance_score': analysis['relevance_score'],
-            'confidence_score': analysis['confidence_score'],
-            'star_score': analysis['star_score'],
-            'filler_words_count': analysis['filler_words_count'],
-            'feedback': analysis['feedback'],
-            'cross_question_asked': analysis['needs_cross_question']
+            'grammar_score': analysis.get('grammar_score', 0),
+            'relevance_score': analysis.get('relevance_score', 0),
+            'confidence_score': analysis.get('confidence_score', 0),
+            'star_score': analysis.get('star_score', 0),
+            'filler_words_count': analysis.get('filler_words_count', 0),
+            'feedback': analysis.get('feedback', ''),
+            'cross_question_asked': analysis.get('needs_cross_question', False)
         }
         
         answer_id = save_answer(answer_data)
         
         # Store in session
         answer_data['id'] = answer_id
-        answer_data['question_text'] = current_question['question_text']
+        answer_data['question_text'] = current_question.get('question_text', '')
+        if 'answers' not in session or not isinstance(session['answers'], list):
+            session['answers'] = []
         session['answers'].append(answer_data)
         
-        # Update question index
-        session['current_question_index'] = current_index + 1
-        
+        has_next = (question_idx + 1) < len(questions)
         response = {
             'status': 'success',
             'analysis': analysis,
-            'next_question_available': (current_index + 1) < len(questions)
+            'next_question_available': has_next,
+            'current_index': question_idx,
+            'total_questions': len(questions)
         }
         
-        if analysis['needs_cross_question']:
-            response['cross_question'] = analysis['cross_question']
+        if analysis.get('needs_cross_question'):
+            response['cross_question'] = analysis.get('cross_question', '')
         
         return jsonify(response)
     
-    return jsonify({'status': 'error', 'message': 'No more questions'})
+    return jsonify({'status': 'error', 'message': 'Question not found or session expired'})
 
 @app.route('/coding-test')
 def coding_test():

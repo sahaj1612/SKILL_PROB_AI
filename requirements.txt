@@ -1,0 +1,8 @@
+flask
+flask-session
+PyPDF2
+python-dotenv
+google-generativeai
+textblob
+nltk
+pdfkit

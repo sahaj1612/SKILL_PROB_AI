@@ -1,4 +1,4 @@
-// Speech recognition for interview answers - Fixed version
+// Speech recognition for interview answers
 class SpeechRecognitionManager {
     constructor() {
         this.recognition = null;
@@ -52,10 +52,9 @@ class SpeechRecognitionManager {
                 
                 if (event.results[i].isFinal) {
                     this.finalTranscript += transcript + ' ';
-                    console.log('Final transcript:', transcript);
+                    console.log('Final transcript chunk:', transcript);
                 } else {
                     this.interimTranscript += transcript;
-                    console.log('Interim transcript:', transcript);
                 }
             }
             
@@ -71,7 +70,7 @@ class SpeechRecognitionManager {
             // Show user-friendly error messages
             switch (event.error) {
                 case 'no-speech':
-                    alert('No speech detected. Please speak clearly into the microphone.');
+                    // Silent retry or gentle notification
                     break;
                 case 'audio-capture':
                     alert('No microphone found. Please ensure a microphone is connected and permissions are granted.');
@@ -80,7 +79,7 @@ class SpeechRecognitionManager {
                     alert('Microphone access was denied. Please allow microphone access in your browser settings.');
                     break;
                 default:
-                    console.error('Speech recognition error:', event.error);
+                    console.warn('Speech recognition notice:', event.error);
             }
         };
         
@@ -89,22 +88,10 @@ class SpeechRecognitionManager {
             this.isListening = false;
             this.updateUI();
             this.sendSpeechStatus(false);
-            
-            // Update answer textarea with final transcript
-            if (this.answerText) {
-                const currentText = this.answerText.value;
-                const speechText = this.finalTranscript.trim();
-                
-                if (speechText) {
-                    // Combine existing text with speech text
-                    this.answerText.value = currentText ? currentText + ' ' + speechText : speechText;
-                    this.answerText.dispatchEvent(new Event('input')); // Trigger input event
-                }
-            }
         };
         
         // Button click handler
-        this.speechButton.addEventListener('click', (e) => {
+        this.speechButton?.addEventListener('click', (e) => {
             e.preventDefault();
             this.toggleSpeechRecognition();
         });
@@ -114,10 +101,12 @@ class SpeechRecognitionManager {
     }
     
     showUnsupportedMessage() {
-        this.speechButton.disabled = true;
-        this.speechButton.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Speech Not Supported';
-        this.speechButton.classList.remove('from-green-500', 'to-blue-500');
-        this.speechButton.classList.add('bg-gray-400');
+        if (this.speechButton) {
+            this.speechButton.disabled = true;
+            this.speechButton.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Speech Not Supported';
+            this.speechButton.classList.remove('from-green-500', 'to-blue-500');
+            this.speechButton.classList.add('bg-gray-400');
+        }
         
         if (this.speechStatus) {
             const statusIndicator = this.speechStatus.querySelector('.h-3');
@@ -147,10 +136,9 @@ class SpeechRecognitionManager {
             return;
         }
         
-        // Clear previous transcripts
-        this.finalTranscript = '';
-        this.interimTranscript = '';
-        this.updateTranscriptDisplay();
+        if (this.isListening) {
+            return;
+        }
         
         // Request microphone permission first
         this.requestMicrophonePermission()
@@ -159,7 +147,6 @@ class SpeechRecognitionManager {
                     this.recognition.start();
                 } catch (error) {
                     console.error('Failed to start speech recognition:', error);
-                    alert('Failed to start speech recognition. Please try again.');
                 }
             })
             .catch(error => {
@@ -175,7 +162,7 @@ class SpeechRecognitionManager {
                 video: false 
             });
             
-            // Stop the stream immediately since we only needed permission
+            // Stop the temporary stream tracks
             stream.getTracks().forEach(track => track.stop());
             return true;
         } catch (error) {
@@ -190,6 +177,8 @@ class SpeechRecognitionManager {
             } catch (error) {
                 console.error('Failed to stop speech recognition:', error);
             }
+            this.isListening = false;
+            this.updateUI();
         }
     }
     
@@ -201,15 +190,12 @@ class SpeechRecognitionManager {
             this.speechButton.classList.remove('from-green-500', 'to-blue-500');
             this.speechButton.classList.add('from-red-500', 'to-purple-500');
             
-            // Update status indicator
             this.updateStatusIndicator('green', 'Listening...');
-            
         } else {
             this.speechButton.innerHTML = '<i class="fas fa-microphone mr-2"></i> Start Speaking';
             this.speechButton.classList.remove('from-red-500', 'to-purple-500');
             this.speechButton.classList.add('from-green-500', 'to-blue-500');
             
-            // Update status indicator
             this.updateStatusIndicator('red', 'Off');
         }
     }
@@ -245,8 +231,6 @@ class SpeechRecognitionManager {
         }
         
         this.transcriptDisplay.innerHTML = displayText;
-        
-        // Auto-scroll to bottom
         this.transcriptDisplay.scrollTop = this.transcriptDisplay.scrollHeight;
     }
     
@@ -263,7 +247,7 @@ class SpeechRecognitionManager {
     }
     
     getTranscript() {
-        return this.finalTranscript.trim();
+        return (this.finalTranscript + ' ' + this.interimTranscript).trim();
     }
     
     clearTranscript() {
@@ -293,179 +277,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
-
-// // Speech recognition for interview answers
-// class SpeechRecognitionManager {
-//     constructor() {
-//         this.recognition = null;
-//         this.isListening = false;
-//         this.finalTranscript = '';
-//         this.interimTranscript = '';
-        
-//         this.speechButton = document.getElementById('toggle-speech');
-//         this.speechStatus = document.getElementById('speech-status');
-//         this.transcriptDisplay = document.getElementById('transcript-display');
-//         this.answerText = document.getElementById('answer-text');
-        
-//         this.init();
-//     }
-    
-//     init() {
-//         // Check browser support
-//         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-//             this.speechButton.disabled = true;
-//             this.speechButton.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Speech Not Supported';
-//             return;
-//         }
-        
-//         // Initialize speech recognition
-//         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-//         this.recognition = new SpeechRecognition();
-        
-//         this.recognition.continuous = true;
-//         this.recognition.interimResults = true;
-//         this.recognition.lang = 'en-US';
-        
-//         this.recognition.onstart = () => {
-//             this.isListening = true;
-//             this.updateUI();
-//         };
-        
-//         this.recognition.onresult = (event) => {
-//             this.interimTranscript = '';
-            
-//             for (let i = event.resultIndex; i < event.results.length; i++) {
-//                 const transcript = event.results[i][0].transcript;
-                
-//                 if (event.results[i].isFinal) {
-//                     this.finalTranscript += transcript + ' ';
-//                 } else {
-//                     this.interimTranscript += transcript;
-//                 }
-//             }
-            
-//             this.updateTranscriptDisplay();
-//         };
-        
-//         this.recognition.onerror = (event) => {
-//             console.error('Speech recognition error:', event.error);
-//             if (event.error === 'no-speech') {
-//                 alert('No speech detected. Please try again.');
-//             }
-//         };
-        
-//         this.recognition.onend = () => {
-//             this.isListening = false;
-//             this.updateUI();
-            
-//             // Update answer textarea with final transcript
-//             if (this.answerText) {
-//                 this.answerText.value = this.finalTranscript.trim();
-//             }
-            
-//             // Send speech status to server
-//             this.sendSpeechStatus(false);
-//         };
-        
-//         // Button click handler
-//         this.speechButton.addEventListener('click', () => this.toggleSpeechRecognition());
-//     }
-    
-//     toggleSpeechRecognition() {
-//         if (this.isListening) {
-//             this.stop();
-//         } else {
-//             this.start();
-//         }
-//     }
-    
-//     start() {
-//         this.finalTranscript = '';
-//         this.interimTranscript = '';
-        
-//         try {
-//             this.recognition.start();
-//             this.sendSpeechStatus(true);
-//         } catch (error) {
-//             console.error('Failed to start speech recognition:', error);
-//         }
-//     }
-    
-//     stop() {
-//         try {
-//             this.recognition.stop();
-//         } catch (error) {
-//             console.error('Failed to stop speech recognition:', error);
-//         }
-//     }
-    
-//     updateUI() {
-//         if (this.isListening) {
-//             this.speechButton.innerHTML = '<i class="fas fa-microphone-slash mr-2"></i> Stop Speaking';
-//             this.speechButton.classList.remove('from-green-500', 'to-blue-500');
-//             this.speechButton.classList.add('from-red-500', 'to-purple-500');
-            
-//             // Update status indicator
-//             const statusIndicator = this.speechStatus.querySelector('.h-3');
-//             const statusText = this.speechStatus.querySelector('span:last-child');
-            
-//             statusIndicator.className = 'h-3 w-3 rounded-full bg-green-500 mr-2 animate-pulse';
-//             statusText.textContent = 'Listening...';
-            
-//         } else {
-//             this.speechButton.innerHTML = '<i class="fas fa-microphone mr-2"></i> Start Speaking';
-//             this.speechButton.classList.remove('from-red-500', 'to-purple-500');
-//             this.speechButton.classList.add('from-green-500', 'to-blue-500');
-            
-//             // Update status indicator
-//             const statusIndicator = this.speechStatus.querySelector('.h-3');
-//             const statusText = this.speechStatus.querySelector('span:last-child');
-            
-//             statusIndicator.className = 'h-3 w-3 rounded-full bg-red-500 mr-2';
-//             statusText.textContent = 'Off';
-//         }
-//     }
-    
-//     updateTranscriptDisplay() {
-//         if (this.transcriptDisplay) {
-//             let displayText = this.finalTranscript;
-            
-//             if (this.interimTranscript) {
-//                 displayText += '<span class="text-gray-400">' + this.interimTranscript + '</span>';
-//             }
-            
-//             if (displayText.trim() === '') {
-//                 displayText = '<p class="text-gray-500 italic">Speech transcript will appear here...</p>';
-//             }
-            
-//             this.transcriptDisplay.innerHTML = displayText;
-//         }
-//     }
-    
-//     async sendSpeechStatus(isActive) {
-//         try {
-//             await fetch('/api/speech-status', {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify({ active: isActive })
-//             });
-//         } catch (error) {
-//             console.error('Error sending speech status:', error);
-//         }
-//     }
-    
-//     getTranscript() {
-//         return this.finalTranscript.trim();
-//     }
-    
-//     clearTranscript() {
-//         this.finalTranscript = '';
-//         this.interimTranscript = '';
-//         this.updateTranscriptDisplay();
-//     }
-// }
-
-// // Initialize speech recognition when page loads
-// document.addEventListener('DOMContentLoaded', () => {
-//     window.speechManager = new SpeechRecognitionManager();
-// });

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Interview Coach - {% block title %}{% endblock %}</title>
+    <title>Skill Prob AI - {% block title %}{% endblock %}</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
@@ -18,7 +18,7 @@
         <div class="container mx-auto px-4 py-3">
             <div class="flex justify-between items-center">
                 <a href="{{ url_for('index') }}" class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-robot mr-2"></i> AI Interview Coach
+                    <i class="fas fa-robot mr-2"></i> Skill Prob AI
                 </a>
                 <div class="space-x-4">
                     {% if session.get('resume_text') %}
