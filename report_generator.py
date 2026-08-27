@@ -6,7 +6,7 @@ import tempfile
 
 class ReportGenerator:
     @staticmethod
-    def generate_html_report(session_data, performance_data, answers_data, coding_data):
+    def generate_html_report(session_data, performance_data, answers_data):
         """Generate HTML report"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         

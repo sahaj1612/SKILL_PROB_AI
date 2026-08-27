@@ -31,7 +31,6 @@ def init_db():
             domain TEXT,
             experience_level TEXT,
             resume_text TEXT,
-            job_description TEXT,
             start_time TIMESTAMP,
             end_time TIMESTAMP,
             total_score REAL,
@@ -76,25 +75,6 @@ def init_db():
         )
     ''')
     
-    # Coding tests table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS coding_tests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            problem_statement TEXT,
-            language TEXT DEFAULT 'python',
-            user_code TEXT,
-            test_cases_passed INTEGER,
-            total_test_cases INTEGER,
-            efficiency_score REAL,
-            clarity_score REAL,
-            logic_score REAL,
-            feedback TEXT,
-            time_taken INTEGER,
-            FOREIGN KEY (session_id) REFERENCES interview_sessions (id)
-        )
-    ''')
-    
     # Performance history table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS performance_history (
@@ -105,7 +85,6 @@ def init_db():
             overall_score REAL,
             communication_score REAL,
             technical_score REAL,
-            coding_score REAL,
             confidence_score REAL,
             areas_to_improve TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id),
@@ -123,14 +102,13 @@ def save_interview_session(session_data):
     
     cursor.execute('''
         INSERT INTO interview_sessions 
-        (user_id, domain, experience_level, resume_text, job_description, start_time)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (user_id, domain, experience_level, resume_text, start_time)
+        VALUES (?, ?, ?, ?, ?)
     ''', (
         session_data['user_id'],
         session_data['domain'],
         session_data['experience_level'],
         session_data['resume_text'],
-        session_data['job_description'],
         datetime.now()
     ))
     
@@ -196,37 +174,6 @@ def save_answer(answer_data):
     
     return answer_id
 
-def save_coding_test(test_data):
-    """Save coding test results"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        INSERT INTO coding_tests 
-        (session_id, problem_statement, language, user_code, 
-         test_cases_passed, total_test_cases, efficiency_score, 
-         clarity_score, logic_score, feedback, time_taken)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        test_data['session_id'],
-        test_data['problem_statement'],
-        test_data['language'],
-        test_data['user_code'],
-        test_data['test_cases_passed'],
-        test_data['total_test_cases'],
-        test_data['efficiency_score'],
-        test_data['clarity_score'],
-        test_data['logic_score'],
-        test_data['feedback'],
-        test_data['time_taken']
-    ))
-    
-    test_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return test_id
-
 def get_session_performance(session_id):
     """Get performance data for a session"""
     conn = get_db()
@@ -239,14 +186,6 @@ def get_session_performance(session_id):
     ''', (session_id,))
     
     answers = [dict(row) for row in cursor.fetchall()]
-    
-    # Get coding tests
-    cursor.execute('''
-        SELECT * FROM coding_tests 
-        WHERE session_id = ?
-    ''', (session_id,))
-    
-    coding_tests = [dict(row) for row in cursor.fetchall()]
     
     # Get session info
     cursor.execute('''
@@ -261,8 +200,7 @@ def get_session_performance(session_id):
     
     return {
         'session': session,
-        'answers': answers,
-        'coding_tests': coding_tests
+        'answers': answers
     }
 
 def get_user_history(user_id):

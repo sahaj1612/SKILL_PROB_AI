@@ -74,44 +74,6 @@
                 </div>
             </div>
             
-            <!-- Additional Options -->
-            <div class="border-t pt-6">
-                <h3 class="text-lg font-semibold mb-4">
-                    <i class="fas fa-sliders-h mr-2 text-purple-500"></i> Additional Settings
-                </h3>
-
-                <!-- Add this in the setup form -->
-<div class="border-t pt-6">
-    <h3 class="text-lg font-semibold mb-4">
-        <i class="fas fa-microphone-alt mr-2 text-red-500"></i> Audio Setup
-    </h3>
-    <p class="text-gray-600 mb-4">
-        Test your microphone and speech recognition before starting the interview.
-    </p>
-    <a href="{{ url_for('mic_test') }}" 
-       class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-lg hover:opacity-90">
-        <i class="fas fa-microphone mr-2"></i> Test Microphone & Speech
-    </a>
-</div>
-                <div class="space-y-4">
-                    <label class="flex items-center">
-                        <input type="checkbox" name="include_coding" checked 
-                               class="h-5 w-5 text-blue-600 rounded">
-                        <span class="ml-2">Include coding test</span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="checkbox" name="record_session" checked 
-                               class="h-5 w-5 text-blue-600 rounded">
-                        <span class="ml-2">Record session for review</span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="checkbox" name="enable_cross_questions" checked 
-                               class="h-5 w-5 text-blue-600 rounded">
-                        <span class="ml-2">Enable adaptive cross-questions</span>
-                    </label>
-                </div>
-            </div>
-            
             <!-- Navigation Buttons -->
             <div class="flex justify-between pt-6">
                 <a href="{{ url_for('upload') }}" 

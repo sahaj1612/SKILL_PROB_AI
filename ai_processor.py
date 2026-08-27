@@ -59,16 +59,13 @@ class AIProcessor:
             print(f"Error extracting resume text: {e}")
             return {}
     
-    def generate_questions(self, resume_data, job_description, domain, experience_level, count=10):
+    def generate_questions(self, resume_data, domain, experience_level, count=10):
         """Generate interview questions based on resume and JD"""
         prompt = f"""
         You are an expert technical interviewer. Generate {count} interview questions for a {experience_level} level {domain} position.
         
         Resume Information:
         {json.dumps(resume_data, indent=2)}
-        
-        Job Description:
-        {job_description[:1000]}
         
         Generate a mix of questions:
         1. 3-4 Technical questions specific to {domain}
@@ -132,7 +129,12 @@ class AIProcessor:
     def analyze_answer(self, question, answer, transcript):
         """Analyze candidate's answer"""
         filler_words = ['um', 'uh', 'ah', 'er', 'like', 'you know', 'so', 'well']
-        filler_count = sum(transcript.lower().count(word) for word in filler_words)
+        # Count whole filler words/phrases only.  Substring matching can count
+        # ordinary words such as "some" or "wellbeing" by mistake.
+        filler_count = sum(
+            len(re.findall(r'(?<!\w)' + re.escape(word) + r'(?!\w)', transcript.lower()))
+            for word in filler_words
+        )
         
         # Calculate sentiment using TextBlob
         blob = TextBlob(transcript)
@@ -178,6 +180,8 @@ class AIProcessor:
         """
         
         try:
+            if not self.model:
+                raise RuntimeError("Gemini model is not available")
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             
@@ -208,17 +212,108 @@ class AIProcessor:
         except Exception as e:
             print(f"Error analyzing answer: {e}")
         
-        # Fallback analysis
+        # Gemini may be unavailable (for example, due to a bad/expired key or a
+        # quota error).  The local evaluator must still assess the actual answer
+        # instead of returning the same hard-coded result for every submission.
+        return self._analyze_answer_locally(question, answer, transcript, filler_count)
+
+    def _analyze_answer_locally(self, question, answer, transcript, filler_count):
+        """Return answer-sensitive feedback when the remote AI service is unavailable."""
+        answer_words = re.findall(r"[a-zA-Z0-9']+", answer.lower())
+        question_words = re.findall(r"[a-zA-Z0-9']+", question.lower())
+        ignored_words = {
+            'about', 'and', 'are', 'can', 'could', 'describe', 'did', 'do', 'for',
+            'from', 'have', 'how', 'in', 'is', 'me', 'of', 'on', 'or', 'the', 'to',
+            'was', 'what', 'with', 'would', 'you', 'your', 'tell', 'experience'
+        }
+        keywords = {word for word in question_words if len(word) > 2 and word not in ignored_words}
+        matched_keywords = sorted(keywords.intersection(answer_words))
+        word_count = len(answer_words)
+        sentence_count = len([part for part in re.split(r'[.!?]+', answer) if part.strip()])
+
+        # Relevance is driven mainly by the question's important words, with a
+        # small credit for enough detail.  An unrelated, long answer cannot score
+        # well simply because it contains many words.
+        keyword_coverage = len(matched_keywords) / max(1, len(keywords))
+        detail_score = min(1.0, word_count / 80)
+        behavioral_question = bool(
+            set(question_words).intersection({'challenging', 'project', 'obstacles', 'team', 'conflict', 'strengths', 'weaknesses'})
+        )
+        behavioral_evidence = {
+            'project', 'team', 'responsible', 'implemented', 'built', 'created', 'led',
+            'improved', 'result', 'outcome', 'increased', 'reduced', 'delivered'
+        }
+        behavioral_coverage = len(set(answer_words).intersection(behavioral_evidence)) / len(behavioral_evidence)
+        # Behavioral questions are often answered with natural wording that does
+        # not repeat words such as "challenge" or "obstacle".  Credit clear
+        # project/action/result evidence as well as literal keyword matches.
+        relevance_evidence = max(keyword_coverage, behavioral_coverage * 1.8) if behavioral_question else keyword_coverage
+        relevance_score = round(max(1, min(10, 1 + relevance_evidence * 7 + detail_score * 2)))
+
+        sentence_starts = re.findall(r'(?:^|[.!?]\s+)([A-Za-z])', answer)
+        capitalized_starts = sum(letter.isupper() for letter in sentence_starts)
+        grammar_score = 3
+        if word_count >= 8:
+            grammar_score += 2
+        if sentence_count >= 2:
+            grammar_score += 1
+        if sentence_count and capitalized_starts == sentence_count:
+            grammar_score += 1
+        if re.search(r'[.!?]$', answer.strip()):
+            grammar_score += 1
+        grammar_score -= min(3, filler_count // 2)
+        grammar_score = max(1, min(10, grammar_score))
+
+        star_markers = {
+            'situation': {'situation', 'context', 'when', 'while', 'project', 'team'},
+            'task': {'task', 'goal', 'needed', 'responsible', 'challenge'},
+            'action': {'action', 'implemented', 'built', 'created', 'led', 'improved', 'developed', 'analyzed'},
+            'result': {'result', 'outcome', 'increased', 'reduced', 'improved', 'delivered', 'saved', 'percent'}
+        }
+        answer_word_set = set(answer_words)
+        star_parts = sum(bool(answer_word_set.intersection(markers)) for markers in star_markers.values())
+        number_of_metrics = len(re.findall(r'\b\d+(?:\.\d+)?%?\b', answer))
+        star_score = min(10, 1 + star_parts * 2 + min(1, number_of_metrics))
+
+        confidence_score = round(max(1, min(
+            10,
+            2 + min(3, word_count / 25) + min(2, sentence_count / 2)
+            + keyword_coverage * 2 - min(2, filler_count * 0.25)
+        )))
+
+        topic = ', '.join(sorted(keywords)[:3]) or 'the main topic in the question'
+        if relevance_score <= 3:
+            feedback = (
+                f"Your answer has {word_count} words but does not address the question's key topic "
+                f"({topic}). Give a direct answer before adding background or examples."
+            )
+        else:
+            matched = ', '.join(matched_keywords[:4])
+            feedback = (
+                f"You addressed {matched}. To make the answer stronger, explain your specific role, "
+                "what you did, and the measurable result."
+            )
+
+        suggested_answer = (
+            f"Start by directly addressing {topic}. Then describe the situation, your responsibility, "
+            "the actions you took, and the outcome with a concrete result."
+        )
+        needs_cross_question = word_count < 30 or relevance_score <= 3
+        cross_question = (
+            f"How does your answer relate to {topic}? Please give one specific example."
+            if needs_cross_question else ''
+        )
+
         return {
-            'grammar_score': 6,
-            'relevance_score': 6,
-            'star_score': 5,
-            'confidence_score': 6,
+            'grammar_score': grammar_score,
+            'relevance_score': relevance_score,
+            'star_score': star_score,
+            'confidence_score': confidence_score,
             'filler_words_count': filler_count,
-            'feedback': 'Basic analysis only. AI service unavailable.',
-            'suggested_answer': 'Try to provide more specific examples and structure your answer using the STAR method.',
-            'needs_cross_question': len(answer.split()) < 30,
-            'cross_question': 'Could you elaborate more on that point?' if len(answer.split()) < 30 else ''
+            'feedback': feedback,
+            'suggested_answer': suggested_answer,
+            'needs_cross_question': needs_cross_question,
+            'cross_question': cross_question
         }
     
     def generate_cross_question(self, question, answer):
@@ -243,93 +338,7 @@ class AIProcessor:
         except:
             return "Could you provide a more detailed example or elaborate on that point?"
     
-    def evaluate_code(self, problem_statement, user_code, language='python'):
-        """Evaluate submitted code"""
-        prompt = f"""
-        Evaluate this coding solution:
-        
-        Problem: {problem_statement}
-        Language: {language}
-        Code:
-        {user_code}
-        
-        Provide evaluation as JSON with:
-        - logic_score: 0-10 for logical correctness
-        - efficiency_score: 0-10 for time/space efficiency
-        - clarity_score: 0-10 for code readability and structure
-        - test_cases_passed: estimated test cases passed (0-5)
-        - total_test_cases: 5 (assumed)
-        - detailed_feedback: Specific feedback on improvements
-        - suggested_improvements: How to improve the code
-        - time_complexity: Estimated time complexity
-        - space_complexity: Estimated space complexity
-        
-        Return only JSON.
-        """
-        
-        try:
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
-            
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                evaluation = json.loads(json_match.group())
-                return evaluation
-        except Exception as e:
-            print(f"Error evaluating code: {e}")
-        
-        # Fallback evaluation
-        return {
-            'logic_score': 6,
-            'efficiency_score': 6,
-            'clarity_score': 6,
-            'test_cases_passed': 3,
-            'total_test_cases': 5,
-            'detailed_feedback': 'Basic evaluation only. AI service unavailable.',
-            'suggested_improvements': 'Add more comments and handle edge cases.',
-            'time_complexity': 'O(n)',
-            'space_complexity': 'O(1)'
-        }
-    
-    def generate_problem_statement(self, domain, difficulty='medium'):
-        """Generate a coding problem statement"""
-        prompt = f"""
-        Generate a {difficulty} level coding problem for {domain} domain.
-        The problem should be solvable in 10-15 minutes and test:
-        1. Basic programming logic
-        2. Problem-solving approach
-        3. Clean code practices
-        
-        Provide as JSON with:
-        - problem_statement: Clear description of the problem
-        - example_input: Example input
-        - example_output: Expected output for example
-        - constraints: Any constraints (time/space)
-        - hints: 1-2 hints for solving
-        
-        Return only JSON.
-        """
-        
-        try:
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
-            
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except:
-            pass
-        
-        # Default problem
-        return {
-            'problem_statement': 'Write a function to find the maximum element in a list.',
-            'example_input': '[1, 5, 3, 9, 2]',
-            'example_output': '9',
-            'constraints': 'Time complexity should be O(n)',
-            'hints': ['Iterate through the list while keeping track of maximum']
-        }
-    
-    def generate_final_report(self, session_data, answers_data, coding_data):
+    def generate_final_report(self, session_data, answers_data):
         """Generate final performance report"""
         prompt = f"""
         Generate a comprehensive interview performance report.
@@ -340,9 +349,6 @@ class AIProcessor:
         
         Performance Analysis:
         {json.dumps(answers_data, indent=2)}
-        
-        Coding Test Results:
-        {json.dumps(coding_data, indent=2) if coding_data else 'No coding test'}
         
         Provide a detailed report as JSON with:
         - overall_score: 0-100 overall performance

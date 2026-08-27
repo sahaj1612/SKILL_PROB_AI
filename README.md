@@ -1,6 +1,6 @@
 # AI Interview Platform
 
-An intelligent AI-powered technical and behavioral interview preparation platform featuring speech recognition, real-time AI answer analysis, live coding challenges, and comprehensive performance feedback.
+An AI-powered technical and behavioral interview preparation platform featuring speech recognition, real-time answer analysis, and comprehensive performance feedback.
 
 ---
 
@@ -83,7 +83,6 @@ Once the server is running, open your browser and go to:
 
 - `app.py` - Flask web application routes and controller logic
 - `ai_processor.py` - Gemini AI integration, question generation, and answer analysis
-- `code_sandbox.py` - Python code execution sandbox for coding challenges
 - `database.py` - SQLite database initialization and data access methods
 - `report_generator.py` - Detailed performance report generation (HTML/PDF)
 - `templates/` - Jinja2 HTML templates

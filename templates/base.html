@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,11 +21,6 @@
                     <i class="fas fa-robot mr-2"></i> Skill Prob AI
                 </a>
                 <div class="space-x-4">
-                    {% if session.get('resume_text') %}
-                    <span class="text-sm bg-white/20 px-3 py-1 rounded-full">
-                        <i class="fas fa-user mr-1"></i> Session Active
-                    </span>
-                    {% endif %}
                     <a href="{{ url_for('index') }}" class="hover:text-blue-200">
                         <i class="fas fa-home"></i> Home
                     </a>
@@ -53,7 +48,6 @@
     <footer class="bg-gray-800 text-white py-6 mt-12">
         <div class="container mx-auto px-4 text-center">
             <p class="mb-2">AI Interview Practice System - College Project</p>
-            <p class="text-sm text-gray-400">Powered by Gemini AI & Flask</p>
         </div>
     </footer>
 

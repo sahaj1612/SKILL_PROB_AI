@@ -5,9 +5,7 @@ class InterviewManager {
         this.totalQuestions = 0;
         this.currentQuestion = null;
         this.sessionId = document.getElementById('session-id')?.value;
-        this.timerInterval = null;
-        this.timeLeft = 120; // 2 minutes default
-        this.totalTime = 120;
+        this.questionStartedAt = null;
         
         this.init();
     }
@@ -30,9 +28,6 @@ class InterviewManager {
         // Next question
         document.getElementById('next-question-btn')?.addEventListener('click', () => this.nextQuestion());
         
-        // Timer controls
-        document.getElementById('start-timer')?.addEventListener('click', () => this.startTimer());
-        document.getElementById('stop-timer')?.addEventListener('click', () => this.stopTimer());
     }
     
     async loadInitialQuestion() {
@@ -103,11 +98,7 @@ class InterviewManager {
             }`;
         }
         
-        // Reset timer based on question
-        this.timeLeft = question.time_allocated || 120;
-        this.totalTime = this.timeLeft;
-        this.updateTimerDisplay();
-        this.startTimer();
+        this.questionStartedAt = Date.now();
         
         // Clear previous answer and speech transcript
         const answerTextarea = document.getElementById('answer-text');
@@ -130,58 +121,16 @@ class InterviewManager {
         }
     }
     
-    startTimer() {
-        this.stopTimer();
-        
-        const progressCircle = document.getElementById('progress-circle');
-        const total = this.totalTime || 120;
-        
-        this.timerInterval = setInterval(() => {
-            if (this.timeLeft <= 0) {
-                this.stopTimer();
-                this.submitAnswer();
-                return;
-            }
-            
-            this.timeLeft--;
-            this.updateTimerDisplay();
-            
-            // Update progress circle
-            if (progressCircle) {
-                const circumference = 326.56;
-                const offset = circumference - (this.timeLeft / total) * circumference;
-                progressCircle.style.strokeDashoffset = offset;
-            }
-        }, 1000);
-    }
-    
-    stopTimer() {
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-    }
-    
-    updateTimerDisplay() {
-        const timerDisplay = document.getElementById('timer-display');
-        if (!timerDisplay) return;
-        const minutes = Math.floor(this.timeLeft / 60);
-        const seconds = this.timeLeft % 60;
-        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    
     async submitAnswer() {
         // Stop speech recognition if listening
         if (window.speechManager && window.speechManager.isListening) {
             window.speechManager.stop();
         }
         
-        this.stopTimer();
-
         const questionId = document.getElementById('current-question-id')?.value;
         const typedAnswer = (document.getElementById('answer-text')?.value || '').trim();
         const speechTranscript = window.speechManager ? window.speechManager.getTranscript().trim() : '';
-        const duration = Math.max(1, (this.totalTime || 120) - this.timeLeft);
+        const duration = Math.max(1, Math.round((Date.now() - (this.questionStartedAt || Date.now())) / 1000));
 
         // Combine typed answer and speech transcript cleanly
         let combinedAnswer = '';
@@ -303,9 +252,9 @@ class InterviewManager {
                 nextBtn.innerHTML = 'Next Question <i class="fas fa-arrow-right ml-2"></i>';
                 nextBtn.onclick = () => this.nextQuestion();
             } else {
-                nextBtn.innerHTML = 'Continue to Coding Test <i class="fas fa-arrow-right ml-2"></i>';
+                nextBtn.innerHTML = 'View Performance Feedback <i class="fas fa-chart-bar ml-2"></i>';
                 nextBtn.onclick = () => {
-                    window.location.href = '/coding-test';
+                    window.location.href = '/feedback';
                 };
             }
         }
@@ -324,8 +273,6 @@ class InterviewManager {
             window.speechManager.stop();
             window.speechManager.clearTranscript();
         }
-        this.stopTimer();
-
         try {
             const response = await fetch('/api/skip-question', {
                 method: 'POST',
@@ -355,8 +302,6 @@ class InterviewManager {
             window.speechManager.stop();
             window.speechManager.clearTranscript();
         }
-        this.stopTimer();
-
         try {
             const response = await fetch('/api/next-question', {
                 method: 'POST',
@@ -381,8 +326,8 @@ class InterviewManager {
     }
     
     showCompletionMessage() {
-        alert('All questions completed! Moving to coding test...');
-        window.location.href = '/coding-test';
+        alert('All questions completed! Opening your performance feedback...');
+        window.location.href = '/feedback';
     }
     
     finishInterview() {
@@ -390,7 +335,6 @@ class InterviewManager {
             if (window.speechManager) {
                 window.speechManager.stop();
             }
-            this.stopTimer();
             window.location.href = '/feedback';
         }
     }

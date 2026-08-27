@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Upload Documents{% endblock %}
+{% block title %}Upload Resume{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <div class="bg-white rounded-xl shadow-lg p-8">
         <h2 class="text-3xl font-bold text-gray-800 mb-6">
-            <i class="fas fa-upload mr-2 text-blue-600"></i> Upload Your Documents
+            <i class="fas fa-upload mr-2 text-blue-600"></i> Upload Your Resume
         </h2>
         <p class="text-gray-600 mb-8">
-            Upload your resume and job description to generate personalized interview questions.
+            Upload or paste your resume to generate personalized interview questions.
         </p>
         
         <form method="POST" enctype="multipart/form-data" class="space-y-8">
@@ -22,27 +22,11 @@
                 <p class="text-gray-500 mb-4">PDF, TXT, or DOCX files (Max 16MB)</p>
                 <input type="file" name="resume" id="resume" 
                        accept=".pdf,.txt,.docx" 
-                       class="block mx-auto" required>
+                       class="block mx-auto">
                 <p class="text-sm text-gray-400 mt-2">Or paste your resume text below:</p>
                 <textarea name="resume_text" rows="4" 
                          class="w-full mt-2 p-3 border rounded-lg" 
                          placeholder="Paste your resume text here..."></textarea>
-            </div>
-            
-            <!-- Job Description Upload -->
-            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
-                <div class="text-green-600 text-5xl mb-4">
-                    <i class="fas fa-briefcase"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-2">Upload Job Description</h3>
-                <p class="text-gray-500 mb-4">PDF, TXT, or DOCX files (Max 16MB)</p>
-                <input type="file" name="job_description" id="job_description" 
-                       accept=".pdf,.txt,.docx" 
-                       class="block mx-auto">
-                <p class="text-sm text-gray-400 mt-2">Or enter/paste job description:</p>
-                <textarea name="job_description_text" rows="6" 
-                         class="w-full mt-2 p-3 border rounded-lg" 
-                         placeholder="Paste or type the job description here..." required></textarea>
             </div>
             
             <!-- Navigation Buttons -->

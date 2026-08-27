@@ -7,10 +7,8 @@ from werkzeug.utils import secure_filename
 import PyPDF2
 
 from config import Config
-from database import init_db, save_interview_session, save_question, save_answer, save_coding_test
+from database import init_db, save_interview_session, save_question, save_answer
 from ai_processor import AIProcessor
-from code_sandbox import CodeSandbox
-from report_generator import ReportGenerator
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -27,7 +25,6 @@ ai_processor = AIProcessor()
 
 # Create upload directories
 os.makedirs('uploads/resumes', exist_ok=True)
-os.makedirs('uploads/job_descriptions', exist_ok=True)
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -58,15 +55,10 @@ def mic_test():
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
-    """Upload resume and job description"""
+    """Upload a resume for interview personalization."""
     if request.method == 'POST':
-        # Handle file uploads
         resume_file = request.files.get('resume')
-        jd_file = request.files.get('job_description')
-        jd_text = request.form.get('job_description_text', '')
-        
-        resume_text = ""
-        jd_final_text = ""
+        resume_text = request.form.get('resume_text', '').strip()
         
         # Process resume
         if resume_file and allowed_file(resume_file.filename):
@@ -81,23 +73,7 @@ def upload():
                 with open(filepath, 'r', encoding='utf-8') as f:
                     resume_text = f.read()
         
-        # Process job description
-        if jd_file and allowed_file(jd_file.filename):
-            filename = secure_filename(jd_file.filename)
-            filepath = os.path.join('uploads/job_descriptions', filename)
-            jd_file.save(filepath)
-            
-            if filename.endswith('.pdf'):
-                jd_final_text = extract_text_from_pdf(filepath)
-            else:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    jd_final_text = f.read()
-        else:
-            jd_final_text = jd_text
-        
-        # Store in session
         session['resume_text'] = resume_text
-        session['job_description'] = jd_final_text
         
         return redirect(url_for('setup_interview'))
     
@@ -128,7 +104,6 @@ def start_interview():
     # Generate questions
     questions = ai_processor.generate_questions(
         resume_data=resume_data,
-        job_description=session.get('job_description', ''),
         domain=session.get('domain', 'Software Engineering'),
         experience_level=session.get('experience_level', 'Entry'),
         count=8
@@ -139,8 +114,7 @@ def start_interview():
         'user_id': 1,  # Default user for demo
         'domain': session.get('domain'),
         'experience_level': session.get('experience_level'),
-        'resume_text': session.get('resume_text', ''),
-        'job_description': session.get('job_description', '')
+        'resume_text': session.get('resume_text', '')
     }
     
     session_id = save_interview_session(session_data)
@@ -293,70 +267,6 @@ def analyze_answer():
     
     return jsonify({'status': 'error', 'message': 'Question not found or session expired'})
 
-@app.route('/coding-test')
-def coding_test():
-    """Coding test page"""
-    # Generate coding problem
-    domain = session.get('domain', 'Software Engineering')
-    problem = ai_processor.generate_problem_statement(domain)
-    
-    session['coding_problem'] = problem
-    
-    return render_template('coding.html', problem=problem)
-
-@app.route('/api/evaluate-code', methods=['POST'])
-def evaluate_code():
-    """Evaluate submitted code"""
-    data = request.json
-    user_code = data.get('code', '')
-    time_taken = data.get('time_taken', 0)
-    
-    problem = session.get('coding_problem', {})
-    
-    # Basic safety check
-    if not CodeSandbox.is_code_safe(user_code):
-        return jsonify({
-            'status': 'error',
-            'message': 'Code contains potentially unsafe operations'
-        })
-    
-    # Execute code
-    output, error, success = CodeSandbox.execute_python_code(user_code)
-    
-    # AI evaluation
-    evaluation = ai_processor.evaluate_code(
-        problem_statement=problem.get('problem_statement', ''),
-        user_code=user_code
-    )
-    
-    # Save coding test
-    test_data = {
-        'session_id': session.get('session_id'),
-        'problem_statement': problem.get('problem_statement', ''),
-        'language': 'python',
-        'user_code': user_code,
-        'test_cases_passed': evaluation.get('test_cases_passed', 0),
-        'total_test_cases': evaluation.get('total_test_cases', 5),
-        'efficiency_score': evaluation.get('efficiency_score', 0),
-        'clarity_score': evaluation.get('clarity_score', 0),
-        'logic_score': evaluation.get('logic_score', 0),
-        'feedback': evaluation.get('detailed_feedback', ''),
-        'time_taken': time_taken
-    }
-    
-    test_id = save_coding_test(test_data)
-    session['coding_test'] = test_data
-    
-    return jsonify({
-        'status': 'success',
-        'evaluation': evaluation,
-        'execution': {
-            'output': output,
-            'error': error,
-            'success': success
-        }
-    })
-
 @app.route('/feedback')
 def feedback():
     """Show feedback page"""
@@ -389,19 +299,15 @@ def generate_report():
     # Get answers data
     answers_data = session.get('answers', [])
 
-    # Get coding test data
-    coding_data = session.get('coding_test', {})
-
     # Generate final report using AI
-    report = ai_processor.generate_final_report(session_data, answers_data, coding_data)
+    report = ai_processor.generate_final_report(session_data, answers_data)
 
     # Store report in session for potential download
     session['final_report'] = report
 
     return render_template('report.html',
                          report=report,
-                         answers=answers_data,
-                         coding_test=coding_data if coding_data else None)
+                         answers=answers_data)
 
 
 
