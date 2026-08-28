@@ -2,6 +2,20 @@
 
 {% block title %}Interview Setup{% endblock %}
 
+{% block head %}
+<style>
+    html.dark .peer:checked + div {
+        background: #eef4ff !important;
+        border-color: #8ea8d8 !important;
+        color: #1c2942 !important;
+    }
+    html.dark .peer:checked + div p,
+    html.dark .peer:checked + div i {
+        color: #1c2942 !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-3xl mx-auto">
     <div class="bg-white rounded-xl shadow-lg p-8">

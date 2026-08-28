@@ -10,27 +10,43 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        #theme-toggle { width: 42px; height: 42px; min-width: 42px; padding: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+        #theme-icon { display: block; width: 16px; height: 16px; font-size: 16px; line-height: 16px; text-align: center; }
+        html.dark .bg-gray-200 { background: #e7ebf4 !important; color: #1c2942 !important; }
+        html.dark .bg-gray-200 i { color: #1c2942 !important; }
+        .app-footer-inner { justify-content: center; text-align: center; }
+    </style>
+    <script>
+        (() => {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50">
-    <!-- Navigation -->
-    <nav class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex justify-between items-center">
-                <a href="{{ url_for('index') }}" class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-robot mr-2"></i> Skill Prob AI
+<body>
+    <nav class="app-nav">
+        <div class="app-nav-inner">
+            <a href="{{ url_for('index') }}" class="brand" aria-label="Interview Studio home">
+                <span class="brand-mark"><i class="fas fa-sparkles"></i></span>
+                <span>SkillProb <span>AI</span></span>
+            </a>
+            <div class="nav-actions">
+                <a href="{{ url_for('index') }}" class="nav-link">
+                    <i class="fas fa-house"></i><span>Home</span>
                 </a>
-                <div class="space-x-4">
-                    <a href="{{ url_for('index') }}" class="hover:text-blue-200">
-                        <i class="fas fa-home"></i> Home
-                    </a>
-                </div>
+                <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+                    <i id="theme-icon" class="fas fa-moon" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
+    <main class="app-main">
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
@@ -44,14 +60,31 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-white py-6 mt-12">
-        <div class="container mx-auto px-4 text-center">
-            <p class="mb-2">AI Interview Practice System - College Project</p>
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <p>Practice with clarity. Improve with confidence.</p>
         </div>
     </footer>
 
-    <!-- Scripts -->
+    <script>
+        (() => {
+            const button = document.getElementById('theme-toggle');
+            const icon = document.getElementById('theme-icon');
+            const updateButton = () => {
+                const dark = document.documentElement.classList.contains('dark');
+                icon.className = dark ? 'fas fa-sun' : 'fas fa-moon';
+                button.setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
+            };
+            if (button) {
+                updateButton();
+                button.addEventListener('click', () => {
+                    document.documentElement.classList.toggle('dark');
+                    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+                    updateButton();
+                });
+            }
+        })();
+    </script>
     <script src="{{ url_for('static', filename='js/interview.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
