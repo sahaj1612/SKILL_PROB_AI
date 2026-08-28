@@ -1,0 +1,284 @@
+SKILLPROB AI - RESUME-BASED INTERVIEW PRACTICE PLATFORM
+
+1. PROJECT OVERVIEW
+
+SkillProb AI is a web-based interview practice platform. A candidate can upload
+a resume, select an interview domain and experience level, and answer AI-generated
+interview questions using typed or spoken responses.
+
+The platform evaluates every answer, provides a suggested improved answer, and
+shows a final performance report. If the candidate enables the camera, the browser
+also produces local, privacy-aware visibility and attention signals. No video is
+recorded or uploaded.
+
+
+2. MAIN OBJECTIVE
+
+The main objective is to help candidates practise technical and behavioural
+interviews with structured, personalised feedback.
+
+The system can:
+
+- Accept resume text and supported resume files.
+- Generate interview questions based on the selected domain and experience level.
+- Accept typed and speech-recognised answers.
+- Score each answer for grammar, relevance, confidence, and STAR-method structure.
+- Give feedback and a better-answer suggestion after every question.
+- Ask a follow-up question when an answer is too short, vague, or lacks depth.
+- Provide optional local camera feedback about face visibility, eye visibility,
+  gaze near the screen, multiple faces, and poor lighting.
+- Produce a final interview feedback page and report.
+
+
+3. COMPLETE SYSTEM FLOW
+
+Candidate
+    |
+    v
+Upload Resume or Enter Resume Text
+    |
+    v
+Choose Domain and Experience Level
+    |
+    v
+AI Generates Interview Questions
+    |
+    v
+Interview Starts
+    |
+    +--> Optional Camera and Microphone Permissions
+    |
+    v
+Candidate Types or Speaks an Answer
+    |
+    v
+Answer Analysis
+    |
+    +--> Grammar score
+    +--> Relevance score
+    +--> Confidence score
+    +--> STAR-method score
+    +--> Filler-word count
+    +--> Feedback and suggested better answer
+    |
+    v
+Optional Follow-up Question
+    |
+    v
+Next Question
+    |
+    v
+Final Performance and Camera Check Summary
+
+
+4. RESUME INPUT
+
+The candidate may provide resume information by uploading a file or entering
+resume text. Supported upload formats are:
+
+- PDF
+- TXT
+- DOCX
+
+The extracted text is saved for the current interview session so the question
+generator can use it for interview context.
+
+
+5. INTERVIEW SETUP
+
+Before an interview begins, the candidate selects:
+
+- Domain, such as a technical area or job focus.
+- Experience level, such as beginner, intermediate, or experienced.
+
+These choices guide the difficulty and context of generated questions.
+
+
+6. AI-GENERATED QUESTIONS
+
+The platform uses Google Gemini when a GEMINI_API_KEY is configured. Gemini can
+generate questions using the resume context, selected domain, and experience level.
+
+If Gemini is unavailable, the application uses local fallback questions so the
+interview can still continue.
+
+Questions may be technical, behavioural, situational, or project-focused.
+
+
+7. ANSWER SUBMISSION
+
+Candidates can answer in either of two ways:
+
+- Type directly in the answer area.
+- Use browser speech recognition to speak the answer.
+
+When both typed text and a speech transcript are present, the system combines them
+without duplicating the same content.
+
+
+8. ANSWER EVALUATION
+
+Each submitted answer receives four scores out of 10:
+
+Grammar
+    Measures sentence clarity, structure, completion, and the effect of filler words.
+
+Relevance
+    Measures whether the response directly addresses the question and its key topic.
+
+Confidence
+    Estimates how clearly and completely the candidate communicates. It considers
+    answer detail, sentence structure, relevance, sentiment, and filler words.
+
+STAR Method
+    Measures whether a behavioural answer includes Situation, Task, Action, and Result.
+
+A higher score indicates a stronger answer in that area. The scores are practice
+feedback, not an official hiring decision.
+
+
+9. FEEDBACK AFTER EVERY QUESTION
+
+After every answer, the candidate sees:
+
+- Grammar, relevance, confidence, and STAR-method scores.
+- Filler-word count.
+- Personalised AI feedback.
+- A suggested better answer when available.
+- A follow-up question when more explanation is needed.
+- An optional camera-check summary and practical suggestions for that answer.
+
+
+10. FOLLOW-UP QUESTIONS
+
+The platform can ask an additional question when the answer is:
+
+- Short (generally fewer than 30 words).
+- Vague or unclear.
+- Missing depth or a concrete example.
+
+Example:
+
+Question:
+"Describe a difficult project you worked on."
+
+Candidate:
+"I made a web application with my team."
+
+Possible follow-up:
+"What was your specific responsibility, what challenge did you solve, and what
+was the result?"
+
+
+11. CAMERA CHECK
+
+The camera check is optional and runs in the browser only after the candidate gives
+camera permission. It analyses aggregate signals; it does not record or upload video.
+
+Signals shown after each answer can include:
+
+- Samples with no face detected.
+- Samples with more than one face.
+- Samples looking away from the screen.
+- Samples where eyes were not clearly visible.
+- Low-light or possible lens-obstruction samples.
+
+The platform presents these as coaching or review signals. They are not proof of
+misconduct and must not be treated as an automatic decision.
+
+
+12. MICROPHONE AND SPEECH RECOGNITION
+
+The microphone is optional. When enabled, browser speech recognition can create a
+transcript for the candidate's answer. The platform also counts common filler words,
+such as "um", "uh", "like", and "you know", in the submitted transcript.
+
+
+13. FINAL PERFORMANCE FEEDBACK
+
+At the end of the interview, the feedback page shows:
+
+- Average grammar, relevance, confidence, and STAR-method scores.
+- Question-by-question feedback.
+- Submitted answers and answer duration.
+- Filler-word counts.
+- The camera-check summary for the complete interview, if camera data was collected.
+
+
+14. TECHNOLOGY STACK
+
+Frontend:
+
+- HTML and Jinja templates
+- CSS
+- JavaScript
+- Tailwind CSS (CDN)
+- Font Awesome icons
+
+Backend:
+
+- Python
+- Flask
+- Flask-Session
+
+AI and language processing:
+
+- Google Gemini API (optional)
+- TextBlob sentiment analysis
+- NLTK
+
+Browser features:
+
+- Web Speech API for speech recognition
+- MediaPipe Face Landmarker for local camera checks
+- getUserMedia for camera and microphone access
+
+Data and files:
+
+- SQLite database
+- PyPDF2 for PDF text extraction
+- python-dotenv for environment configuration
+
+
+15. MAIN PROJECT FILES
+
+app.py
+    Flask routes, interview flow, answer-analysis API, and camera-summary API.
+
+ai_processor.py
+    Gemini question generation, answer evaluation, fallback evaluation, and report data.
+
+database.py
+    SQLite database setup and persistence for sessions, questions, and answers.
+
+report_generator.py
+    Generates detailed HTML/PDF-oriented interview reports.
+
+templates/
+    HTML pages for home, upload, setup, interview, feedback, and report screens.
+
+static/js/interview.js
+    Loads questions, submits answers, and displays per-question feedback.
+
+static/js/speech.js
+    Handles browser speech recognition and transcripts.
+
+static/js/camera.js
+    Handles optional camera/microphone controls and local camera-check signals.
+
+
+16. IMPORTANT PRIVACY PRINCIPLE
+
+Camera feedback is designed for interview practice. It reports only aggregate,
+observable signals and does not store or upload webcam video. A signal such as
+"looking away" or "more than one face" is not proof of cheating or misconduct.
+Human judgement is always required.
+
+
+17. PROJECT TITLE
+
+"SkillProb AI - Resume-Based Interview Practice and Feedback Platform"
+
+SHORT NAME:
+
+"SkillProb AI"

@@ -36,7 +36,7 @@
                 <span>SkillProb <span>AI</span></span>
             </a>
             <div class="nav-actions">
-                <a href="{{ url_for('index') }}" class="nav-link">
+                <a href="{{ url_for('index') }}" class="nav-link nav-link-active" aria-current="page">
                     <i class="fas fa-house"></i><span>Home</span>
                 </a>
                 <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
@@ -85,7 +85,6 @@
             }
         })();
     </script>
-    <script src="{{ url_for('static', filename='js/interview.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

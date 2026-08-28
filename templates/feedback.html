@@ -13,6 +13,27 @@
             <p class="opacity-90">Detailed analysis of your interview performance</p>
         </div>
     </div>
+
+    {% if integrity_summary %}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex items-start gap-3 mb-5">
+            <i class="fas fa-shield-halved text-blue-600 text-2xl mt-1"></i>
+            <div><h3 class="text-2xl font-bold">Camera Check Summary</h3><p class="text-sm text-gray-600">Observed during {{ integrity_summary.monitored_seconds }} seconds of local camera monitoring. These are review signals, not proof of misconduct or an automatic decision.</p></div>
+        </div>
+        {% if integrity_summary.analysis_available %}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+            <div class="p-4 rounded-lg bg-green-50 text-center"><div class="text-2xl font-bold text-green-700">{{ integrity_summary.face_visible_percent }}%</div><div class="text-sm text-green-700">Face visible</div></div>
+            <div class="p-4 rounded-lg bg-blue-50 text-center"><div class="text-2xl font-bold text-blue-700">{{ integrity_summary.eyes_visible_percent }}%</div><div class="text-sm text-blue-700">Eyes clearly visible</div></div>
+            <div class="p-4 rounded-lg bg-purple-50 text-center"><div class="text-2xl font-bold text-purple-700">{{ integrity_summary.screen_facing_percent }}%</div><div class="text-sm text-purple-700">Gaze near screen</div></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div class="p-3 bg-gray-50 rounded"><strong>{{ integrity_summary.no_face_events }}</strong> samples with no face detected</div><div class="p-3 bg-gray-50 rounded"><strong>{{ integrity_summary.multiple_face_events }}</strong> samples with more than one face</div>
+            <div class="p-3 bg-gray-50 rounded"><strong>{{ integrity_summary.looking_away_events }}</strong> samples looking away from the screen</div><div class="p-3 bg-gray-50 rounded"><strong>{{ integrity_summary.obstruction_events }}</strong> samples where eyes were not clear</div>
+            <div class="p-3 bg-gray-50 rounded sm:col-span-2"><strong>{{ integrity_summary.poor_lighting_events }}</strong> low-light / possible lens-obstruction samples</div>
+        </div>
+        {% else %}<p class="text-gray-600">Camera analysis did not collect enough data. Ensure the camera is on and local model loading is allowed next time.</p>{% endif %}
+    </div>
+    {% endif %}
     
     <!-- Overall Scores -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -111,12 +132,5 @@
         </div>
     </div>
     
-    <!-- Action Buttons -->
-    <div class="flex justify-center space-x-6">
-        <a href="{{ url_for('index') }}" 
-           class="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 flex items-center">
-            <i class="fas fa-redo mr-2"></i> Start New Session
-        </a>
-    </div>
 </div>
 {% endblock %}

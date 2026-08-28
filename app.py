@@ -130,6 +130,7 @@ def start_interview():
     session['questions'] = questions
     session['current_question_index'] = 0
     session['answers'] = []
+    session.pop('integrity_summary', None)
     
     return render_template('interview.html', 
                          questions=questions,
@@ -285,7 +286,24 @@ def feedback():
 
     return render_template('feedback.html',
                          answers=answers,
-                         avg_scores=avg_scores)
+                         avg_scores=avg_scores,
+                         integrity_summary=session.get('integrity_summary'))
+
+@app.route('/api/integrity-summary', methods=['POST'])
+def integrity_summary():
+    """Store aggregate browser-side camera signals; no images or biometric data are accepted."""
+    data = request.get_json(silent=True) or {}
+    allowed = {'monitored_seconds', 'samples', 'face_visible_percent', 'eyes_visible_percent', 'screen_facing_percent', 'no_face_events', 'multiple_face_events', 'looking_away_events', 'obstruction_events', 'poor_lighting_events', 'analysis_available'}
+    summary = {}
+    for key in allowed:
+        value = data.get(key, False if key == 'analysis_available' else 0)
+        if key == 'analysis_available':
+            summary[key] = value is True or str(value).lower() == 'true'
+        else:
+            try: summary[key] = max(0, min(int(value), 100000))
+            except (TypeError, ValueError): summary[key] = 0
+    session['integrity_summary'] = summary
+    return jsonify({'status': 'success'})
 
 @app.route('/generate-report')
 def generate_report():

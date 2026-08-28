@@ -6,6 +6,7 @@ class InterviewManager {
         this.currentQuestion = null;
         this.sessionId = document.getElementById('session-id')?.value;
         this.questionStartedAt = null;
+        this.cameraSnapshot = null;
         
         this.init();
     }
@@ -99,6 +100,7 @@ class InterviewManager {
         }
         
         this.questionStartedAt = Date.now();
+        this.cameraSnapshot = window.cameraManager?.monitor?.snapshot?.() || null;
         
         // Clear previous answer and speech transcript
         const answerTextarea = document.getElementById('answer-text');
@@ -172,7 +174,8 @@ class InterviewManager {
             const data = await response.json();
             
             if (data.status === 'success') {
-                this.displayFeedback(data.analysis, data.next_question_available);
+                const cameraSummary = window.cameraManager?.monitor?.summarySince?.(this.cameraSnapshot) || null;
+                this.displayFeedback(data.analysis, data.next_question_available, cameraSummary);
             } else {
                 alert(data.message || 'Error analyzing answer. Please try again.');
             }
@@ -187,7 +190,7 @@ class InterviewManager {
         }
     }
     
-    displayFeedback(analysis, hasNextQuestion) {
+    displayFeedback(analysis, hasNextQuestion, cameraSummary) {
         const feedbackArea = document.getElementById('feedback-area');
         const feedbackContent = document.getElementById('feedback-content');
         const nextBtn = document.getElementById('next-question-btn');
@@ -243,6 +246,8 @@ class InterviewManager {
                 </div>
             `;
         }
+
+        feedbackHTML += this.cameraFeedbackHTML(cameraSummary);
         
         feedbackContent.innerHTML = feedbackHTML;
         
@@ -253,15 +258,43 @@ class InterviewManager {
                 nextBtn.onclick = () => this.nextQuestion();
             } else {
                 nextBtn.innerHTML = 'View Performance Feedback <i class="fas fa-chart-bar ml-2"></i>';
-                nextBtn.onclick = () => {
-                    window.location.href = '/feedback';
-                };
+                nextBtn.onclick = () => this.completeInterview();
             }
         }
         
         // Show feedback area and scroll into view smoothly
         feedbackArea.classList.remove('hidden');
         feedbackArea.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    cameraFeedbackHTML(summary) {
+        if (!summary?.analysis_available) {
+            return `<div class="p-4 bg-gray-50 rounded-lg mb-4"><h4 class="font-bold mb-2"><i class="fas fa-camera mr-2 text-blue-600"></i>Camera Check for This Answer</h4><p class="text-sm text-gray-600">No camera samples were collected for this answer. Turn on the camera to receive visibility and attention suggestions.</p></div>`;
+        }
+
+        const signals = [
+            [summary.no_face_events, 'Keep your face within the camera frame.'],
+            [summary.multiple_face_events, 'Ensure only you are visible in the camera frame.'],
+            [summary.looking_away_events, 'Try to keep your gaze near the screen while answering.'],
+            [summary.obstruction_events, 'Improve lighting and keep your eyes clearly visible.'],
+            [summary.poor_lighting_events, 'Increase the light in front of you and keep the camera lens clear.']
+        ].filter(([count]) => count > 0);
+        const suggestions = signals.length
+            ? signals.map(([, text]) => `<li>${text}</li>`).join('')
+            : '<li>Great setup—your face, eyes, and screen focus were consistently clear.</li>';
+
+        return `
+            <div class="p-4 bg-gray-50 rounded-lg mb-4">
+                <h4 class="font-bold mb-3"><i class="fas fa-shield-halved mr-2 text-blue-600"></i>Camera Check for This Answer</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
+                    <div class="p-3 bg-white rounded"><strong>${summary.no_face_events}</strong> samples with no face detected</div>
+                    <div class="p-3 bg-white rounded"><strong>${summary.multiple_face_events}</strong> samples with more than one face</div>
+                    <div class="p-3 bg-white rounded"><strong>${summary.looking_away_events}</strong> samples looking away from the screen</div>
+                    <div class="p-3 bg-white rounded"><strong>${summary.obstruction_events}</strong> samples where eyes were not clear</div>
+                    <div class="p-3 bg-white rounded sm:col-span-2"><strong>${summary.poor_lighting_events}</strong> low-light / possible lens-obstruction samples</div>
+                </div>
+                <div class="text-sm"><strong>Suggestion:</strong><ul class="list-disc pl-5 mt-1 space-y-1">${suggestions}</ul></div>
+            </div>`;
     }
     
     async skipQuestion() {
@@ -325,18 +358,26 @@ class InterviewManager {
         }
     }
     
-    showCompletionMessage() {
+    async showCompletionMessage() {
         alert('All questions completed! Opening your performance feedback...');
-        window.location.href = '/feedback';
+        await this.completeInterview();
     }
     
-    finishInterview() {
+    async finishInterview() {
         if (confirm('Are you sure you want to finish the interview? This will end the session.')) {
             if (window.speechManager) {
                 window.speechManager.stop();
             }
-            window.location.href = '/feedback';
+            await this.completeInterview();
         }
+    }
+
+    async completeInterview() {
+        if (this.completing) return;
+        this.completing = true;
+        await window.cameraManager?.monitor?.saveSummary();
+        window.cameraManager?.stopAll();
+        window.location.href = '/feedback';
     }
 }
 
