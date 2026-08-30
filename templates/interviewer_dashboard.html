@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Interviewer Dashboard{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-8 overflow-x-auto">
+    <h1 class="text-3xl font-bold mb-3"><i class="fas fa-users mr-2 text-blue-600"></i>Interviewer Dashboard</h1>
+    <p class="text-gray-600 mb-6">Review completed and in-progress candidate practice sessions. Scores are coaching signals, not hiring decisions.</p>
+    <table class="w-full text-left">
+        <thead><tr class="border-b"><th class="p-3">Candidate</th><th class="p-3">Interview</th><th class="p-3">Answers</th><th class="p-3">Average Scores</th><th class="p-3"></th></tr></thead>
+        <tbody>
+        {% for interview in sessions %}
+            <tr class="border-b">
+                <td class="p-3"><div class="font-semibold">{{ interview.display_name or 'Unnamed candidate' }}</div><div class="text-sm text-gray-500">{{ interview.email or 'No email' }}</div></td>
+                <td class="p-3"><div>{{ interview.domain or 'General interview' }}</div><div class="text-sm text-gray-500">{{ interview.experience_level or 'Not selected' }}{% if interview.start_time %} · {{ interview.start_time }}{% endif %}</div></td>
+                <td class="p-3">{{ interview.answer_count }}</td>
+                <td class="p-3 text-sm">G {{ interview.grammar_score if interview.grammar_score is not none else '—' }} · R {{ interview.relevance_score if interview.relevance_score is not none else '—' }} · C {{ interview.confidence_score if interview.confidence_score is not none else '—' }} · STAR {{ interview.star_score if interview.star_score is not none else '—' }}</td>
+                <td class="p-3"><a class="px-3 py-2 rounded bg-blue-600 text-white text-sm" href="{{ url_for('interviewer_session_review', session_id=interview.id) }}">Review</a></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" class="p-4 text-gray-500">No interview sessions have been recorded yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

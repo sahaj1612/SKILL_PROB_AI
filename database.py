@@ -19,8 +19,40 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
+            email TEXT UNIQUE,
+            display_name TEXT,
+            provider TEXT,
+            provider_user_id TEXT,
+            role TEXT NOT NULL DEFAULT 'candidate',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+    ''')
+    # Existing demo databases may already have the original, smaller users table.
+    # Add the OAuth fields safely when upgrading in place.
+    existing_columns = {row['name'] for row in cursor.execute("PRAGMA table_info(users)")}
+    for column, definition in (
+        ('email', 'TEXT'), ('display_name', 'TEXT'), ('provider', 'TEXT'),
+        ('provider_user_id', 'TEXT'), ('role', "TEXT NOT NULL DEFAULT 'candidate'")
+    ):
+        if column not in existing_columns:
+            cursor.execute(f'ALTER TABLE users ADD COLUMN {column} {definition}')
+    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_provider_identity ON users(provider, provider_user_id)')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS oauth_identities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            provider TEXT NOT NULL,
+            provider_user_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(provider, provider_user_id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    # Preserve OAuth users created by earlier versions of the schema.
+    cursor.execute('''
+        INSERT OR IGNORE INTO oauth_identities (user_id, provider, provider_user_id)
+        SELECT id, provider, provider_user_id FROM users
+        WHERE provider IS NOT NULL AND provider_user_id IS NOT NULL
     ''')
     
     # Interview sessions table
@@ -203,6 +235,57 @@ def get_session_performance(session_id):
         'answers': answers
     }
 
+def list_interview_sessions():
+    """Return interview sessions with candidate details and summary scores for review."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT interview_sessions.id, interview_sessions.domain,
+               interview_sessions.experience_level, interview_sessions.start_time,
+               interview_sessions.end_time, users.display_name, users.email,
+               COUNT(answers.id) AS answer_count,
+               ROUND(AVG(answers.grammar_score), 1) AS grammar_score,
+               ROUND(AVG(answers.relevance_score), 1) AS relevance_score,
+               ROUND(AVG(answers.confidence_score), 1) AS confidence_score,
+               ROUND(AVG(answers.star_score), 1) AS star_score
+        FROM interview_sessions
+        LEFT JOIN users ON users.id = interview_sessions.user_id
+        LEFT JOIN answers ON answers.session_id = interview_sessions.id
+        GROUP BY interview_sessions.id
+        ORDER BY interview_sessions.start_time DESC
+    ''')
+    sessions = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return sessions
+
+def get_interview_review(session_id):
+    """Return one session, its candidate, questions, and scored answers for reviewers."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT interview_sessions.id, interview_sessions.domain,
+               interview_sessions.experience_level, interview_sessions.start_time,
+               interview_sessions.end_time, users.display_name, users.email
+        FROM interview_sessions
+        LEFT JOIN users ON users.id = interview_sessions.user_id
+        WHERE interview_sessions.id = ?
+    ''', (session_id,))
+    session_row = cursor.fetchone()
+    if not session_row:
+        conn.close()
+        return None
+    cursor.execute('''
+        SELECT answers.*, questions.question_text, questions.question_type,
+               questions.difficulty
+        FROM answers
+        LEFT JOIN questions ON questions.id = answers.question_id
+        WHERE answers.session_id = ?
+        ORDER BY answers.created_at ASC, answers.id ASC
+    ''', (session_id,))
+    answers = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return {'session': dict(session_row), 'answers': answers}
+
 def get_user_history(user_id):
     """Get user's performance history"""
     conn = get_db()
@@ -220,3 +303,78 @@ def get_user_history(user_id):
     
     conn.close()
     return history
+
+def get_or_create_oauth_user(provider, provider_user_id, email, display_name, role='candidate'):
+    """Find an OAuth identity or create a user for it."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        '''SELECT users.* FROM users
+           JOIN oauth_identities ON oauth_identities.user_id = users.id
+           WHERE oauth_identities.provider = ? AND oauth_identities.provider_user_id = ?''',
+        (provider, str(provider_user_id))
+    )
+    user = cursor.fetchone()
+    if user:
+        cursor.execute(
+            '''UPDATE users
+               SET email = ?, display_name = ?,
+                   role = CASE WHEN ? = 'admin' THEN 'admin' ELSE role END
+               WHERE id = ?''',
+            (email, display_name, role, user['id'])
+        )
+        conn.commit()
+        user_id = user['id']
+    else:
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+        user = cursor.fetchone()
+        if user:
+            user_id = user['id']
+            cursor.execute(
+                '''UPDATE users SET display_name = ?,
+                   role = CASE WHEN ? = 'admin' THEN 'admin' ELSE role END
+                   WHERE id = ?''',
+                (display_name, role, user_id)
+            )
+        else:
+            username = f'{provider}_{provider_user_id}'
+            cursor.execute(
+                '''INSERT INTO users (username, email, display_name, provider, provider_user_id, role)
+                   VALUES (?, ?, ?, ?, ?, ?)''',
+                (username, email, display_name, provider, str(provider_user_id), role)
+            )
+            user_id = cursor.lastrowid
+        cursor.execute(
+            'INSERT INTO oauth_identities (user_id, provider, provider_user_id) VALUES (?, ?, ?)',
+            (user_id, provider, str(provider_user_id))
+        )
+        conn.commit()
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    result = dict(cursor.fetchone())
+    conn.close()
+    return result
+
+def get_user(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def list_users():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, email, display_name, provider, role, created_at FROM users ORDER BY created_at DESC')
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return users
+
+def update_user_role(user_id, role):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET role = ? WHERE id = ?', (role, user_id))
+    changed = cursor.rowcount == 1
+    conn.commit()
+    conn.close()
+    return changed

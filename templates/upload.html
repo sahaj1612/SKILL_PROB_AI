@@ -20,9 +20,12 @@
                 </div>
                 <h3 class="text-xl font-bold mb-2">Upload Resume</h3>
                 <p class="text-gray-500 mb-4">PDF, TXT, or DOCX files (Max 16MB)</p>
-                <input type="file" name="resume" id="resume" 
-                       accept=".pdf,.txt,.docx" 
-                       class="block mx-auto" required>
+                <input type="file" name="resume" id="resume"
+                       accept=".pdf,.txt,.docx" class="resume-file-input" required>
+                <label for="resume" class="resume-upload-button">
+                    <i class="fas fa-folder-open mr-2"></i> Select Resume
+                </label>
+                <p id="resume-file-name" class="text-sm text-gray-500 mt-3" aria-live="polite">No file selected</p>
             </div>
             
             <!-- Navigation Buttons -->
@@ -39,4 +42,13 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('resume')?.addEventListener('change', (event) => {
+        const fileName = event.target.files?.[0]?.name || 'No file selected';
+        document.getElementById('resume-file-name').textContent = fileName;
+    });
+</script>
 {% endblock %}

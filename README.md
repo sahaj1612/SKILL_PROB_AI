@@ -79,9 +79,37 @@ Once the server is running, open your browser and go to:
 
 ---
 
+## 🔐 Authentication and Roles
+
+The platform supports secure OAuth sign-in with Google and GitHub. Interview practice requires a signed-in **candidate** or **admin** account. The application has three roles:
+
+- **Candidate** — can upload a resume and complete interview practice sessions.
+- **Interviewer** — can access interviewer-only areas.
+- **Admin** — can access interviewer areas and assign roles from `/admin/users`.
+
+### Configure Google and GitHub OAuth
+
+1. Copy `.env.example` to `.env`, keeping your existing `GEMINI_API_KEY` if you use it.
+2. Create a Google OAuth web client and a GitHub OAuth App.
+3. Register these callback URLs with the respective providers:
+
+   ```text
+   http://127.0.0.1:5000/auth/google/callback
+   http://127.0.0.1:5000/auth/github/callback
+   ```
+
+4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` in `.env`.
+5. Set `ADMIN_EMAILS` to your email address. The first time that account signs in, it receives the admin role. Admins can assign candidate, interviewer, or admin roles to other signed-in users.
+
+For deployment, use HTTPS, set `SESSION_COOKIE_SECURE=true`, and register your production callback URLs in both OAuth provider consoles.
+
+---
+
 ## 📊 Understanding Your Interview Scores
 
 After you submit each answer, the platform gives four scores out of 10. A higher score means the answer was stronger in that area. These scores are coaching feedback to help you practise; they are not an official hiring decision.
+
+The scores are generated from the answer you submit (and, when available, the interview AI's analysis). They are intended to show where to improve, not to judge your suitability for a role.
 
 | Score | What it means | How to improve it |
 | --- | --- | --- |

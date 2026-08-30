@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}User Administration{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-8 overflow-x-auto">
+    <h1 class="text-3xl font-bold mb-6"><i class="fas fa-user-shield mr-2 text-purple-600"></i>User Administration</h1>
+    <table class="w-full text-left">
+        <thead><tr class="border-b"><th class="p-3">User</th><th class="p-3">Provider</th><th class="p-3">Role</th><th class="p-3">Action</th></tr></thead>
+        <tbody>
+        {% for user in users %}
+            <tr class="border-b">
+                <td class="p-3"><div class="font-semibold">{{ user.display_name or 'Unnamed user' }}</div><div class="text-sm text-gray-500">{{ user.email }}</div></td>
+                <td class="p-3 capitalize">{{ user.provider or 'Linked account' }}</td>
+                <td class="p-3"><span class="px-2 py-1 rounded bg-gray-100">{{ user.role }}</span></td>
+                <td class="p-3">
+                    {% if user.id == current_user.id %}
+                    <span class="text-sm text-gray-500">Your account</span>
+                    {% else %}
+                    <form action="{{ url_for('admin_users') }}" method="post" class="flex gap-2">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                        <select name="role" class="border rounded px-2 py-1">{% for role in roles %}<option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role|title }}</option>{% endfor %}</select>
+                        <button class="px-3 py-1 rounded bg-purple-600 text-white" type="submit">Save</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" class="p-4 text-gray-500">No users have signed in yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

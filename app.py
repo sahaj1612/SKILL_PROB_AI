@@ -1,5 +1,7 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, abort
 from flask_session import Session
+from authlib.integrations.flask_client import OAuth
+from functools import wraps
 import os
 import json
 from datetime import datetime
@@ -7,12 +9,36 @@ from werkzeug.utils import secure_filename
 import PyPDF2
 
 from config import Config
-from database import init_db, save_interview_session, save_question, save_answer
+from database import (init_db, save_interview_session, save_question, save_answer,
+                      get_or_create_oauth_user, get_user, list_users, update_user_role,
+                      list_interview_sessions, get_interview_review)
 from ai_processor import AIProcessor
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# OAuth clients are registered only when credentials are configured. This keeps
+# local development usable while preventing an incomplete provider setup.
+oauth = OAuth(app)
+if Config.GOOGLE_CLIENT_ID and Config.GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name='google',
+        client_id=Config.GOOGLE_CLIENT_ID,
+        client_secret=Config.GOOGLE_CLIENT_SECRET,
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'}
+    )
+if Config.GITHUB_CLIENT_ID and Config.GITHUB_CLIENT_SECRET:
+    oauth.register(
+        name='github',
+        client_id=Config.GITHUB_CLIENT_ID,
+        client_secret=Config.GITHUB_CLIENT_SECRET,
+        access_token_url='https://github.com/login/oauth/access_token',
+        authorize_url='https://github.com/login/oauth/authorize',
+        api_base_url='https://api.github.com/',
+        client_kwargs={'scope': 'read:user user:email'}
+    )
 
 # Initialize session
 Session(app)
@@ -25,6 +51,43 @@ ai_processor = AIProcessor()
 
 # Create upload directories
 os.makedirs('uploads/resumes', exist_ok=True)
+
+VALID_ROLES = {'candidate', 'interviewer', 'admin'}
+
+def current_user():
+    user_id = session.get('user_id')
+    return get_user(user_id) if user_id else None
+
+@app.context_processor
+def inject_current_user():
+    return {'current_user': current_user()}
+
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user():
+            if request.path.startswith('/api/'):
+                return jsonify({'status': 'error', 'message': 'Sign in is required.'}), 401
+            flash('Please sign in to continue.', 'error')
+            return redirect(url_for('login'))
+        return view(*args, **kwargs)
+    return wrapped
+
+def roles_required(*roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            user = current_user()
+            if not user:
+                if request.path.startswith('/api/'):
+                    return jsonify({'status': 'error', 'message': 'Sign in is required.'}), 401
+                flash('Please sign in to continue.', 'error')
+                return redirect(url_for('login'))
+            if user.get('role') not in roles:
+                abort(403)
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -48,12 +111,110 @@ def index():
     """Home page"""
     return render_template('index.html')
 
+@app.route('/login')
+def login():
+    if current_user():
+        return redirect(url_for('index'))
+    providers = {
+        'google': bool(Config.GOOGLE_CLIENT_ID and Config.GOOGLE_CLIENT_SECRET),
+        'github': bool(Config.GITHUB_CLIENT_ID and Config.GITHUB_CLIENT_SECRET)
+    }
+    return render_template('login.html', providers=providers)
+
+@app.route('/login/<provider>')
+def oauth_login(provider):
+    if provider not in {'google', 'github'}:
+        abort(404)
+    client = oauth.create_client(provider)
+    if client is None:
+        flash(f'{provider.title()} sign-in is not configured yet.', 'error')
+        return redirect(url_for('login'))
+    return client.authorize_redirect(url_for('oauth_callback', provider=provider, _external=True))
+
+@app.route('/auth/<provider>/callback')
+def oauth_callback(provider):
+    if provider not in {'google', 'github'}:
+        abort(404)
+    client = oauth.create_client(provider)
+    if client is None:
+        abort(404)
+    try:
+        token = client.authorize_access_token()
+        if provider == 'google':
+            profile = token.get('userinfo') or client.userinfo(token=token)
+            provider_user_id = profile.get('sub')
+            email = profile.get('email')
+            display_name = profile.get('name') or email
+        else:
+            profile = client.get('user', token=token).json()
+            provider_user_id = profile.get('id')
+            email = profile.get('email')
+            if not email:
+                emails = client.get('user/emails', token=token).json()
+                primary = next((item for item in emails if item.get('primary') and item.get('verified')), None)
+                email = (primary or next((item for item in emails if item.get('verified')), {})).get('email')
+            display_name = profile.get('name') or profile.get('login') or email
+        if not provider_user_id or not email:
+            raise ValueError('Your provider did not return a verified email address.')
+        role = 'admin' if email.lower() in Config.ADMIN_EMAILS else 'candidate'
+        user = get_or_create_oauth_user(provider, provider_user_id, email.lower(), display_name, role)
+        session.clear()
+        session['user_id'] = user['id']
+        session['user_role'] = user['role']
+        flash(f"Signed in as {user['display_name'] or user['email']}.", 'success')
+        return redirect(url_for('index'))
+    except Exception as error:
+        app.logger.warning('OAuth sign-in failed for %s: %s', provider, error)
+        flash('Sign-in could not be completed. Please try again.', 'error')
+        return redirect(url_for('login'))
+
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    session.clear()
+    flash('You have been signed out.', 'success')
+    return redirect(url_for('index'))
+
+@app.route('/interviewer')
+@roles_required('interviewer', 'admin')
+def interviewer_dashboard():
+    return render_template('interviewer_dashboard.html', sessions=list_interview_sessions())
+
+@app.route('/interviewer/session/<int:session_id>')
+@roles_required('interviewer', 'admin')
+def interviewer_session_review(session_id):
+    review = get_interview_review(session_id)
+    if not review:
+        abort(404)
+    return render_template('interviewer_session_review.html', review=review)
+
+@app.route('/admin/users', methods=['GET', 'POST'])
+@roles_required('admin')
+def admin_users():
+    if request.method == 'POST':
+        try:
+            user_id = int(request.form.get('user_id', ''))
+        except ValueError:
+            abort(400)
+        role = request.form.get('role', '')
+        if role not in VALID_ROLES:
+            abort(400)
+        if user_id == session.get('user_id'):
+            flash('You cannot change your own role.', 'error')
+        elif update_user_role(user_id, role):
+            flash('User role updated.', 'success')
+        else:
+            flash('User not found.', 'error')
+        return redirect(url_for('admin_users'))
+    return render_template('admin_users.html', users=list_users(), roles=sorted(VALID_ROLES))
+
 @app.route('/mic-test')
 def mic_test():
     """Microphone test page"""
     return render_template('mic_test.html')
 
 @app.route('/upload', methods=['GET', 'POST'])
+@roles_required('candidate', 'admin')
 def upload():
     """Upload a resume for interview personalization."""
     if request.method == 'POST':
@@ -80,6 +241,7 @@ def upload():
     return render_template('upload.html')
 
 @app.route('/setup', methods=['GET', 'POST'])
+@roles_required('candidate', 'admin')
 def setup_interview():
     """Set up interview parameters"""
     if request.method == 'POST':
@@ -95,6 +257,7 @@ def setup_interview():
     return render_template('setup.html')
 
 @app.route('/start-interview')
+@roles_required('candidate', 'admin')
 def start_interview():
     """Start interview session"""
     # Extract resume data
@@ -111,7 +274,7 @@ def start_interview():
     
     # Save session to database
     session_data = {
-        'user_id': 1,  # Default user for demo
+        'user_id': current_user()['id'],
         'domain': session.get('domain'),
         'experience_level': session.get('experience_level'),
         'resume_text': session.get('resume_text', '')
@@ -138,6 +301,7 @@ def start_interview():
                          session_id=session_id)
 
 @app.route('/api/next-question', methods=['POST'])
+@roles_required('candidate', 'admin')
 def next_question():
     """Get question (current, advance to next, or skip)"""
     data = request.get_json(silent=True) or {}
@@ -168,6 +332,7 @@ def next_question():
     })
 
 @app.route('/api/skip-question', methods=['POST'])
+@roles_required('candidate', 'admin')
 def skip_question():
     """Skip current question and advance to next"""
     questions = session.get('questions', [])
@@ -194,6 +359,7 @@ def skip_question():
     })
 
 @app.route('/api/analyze-answer', methods=['POST'])
+@roles_required('candidate', 'admin')
 def analyze_answer():
     """Analyze candidate's answer"""
     data = request.json or {}
@@ -269,6 +435,7 @@ def analyze_answer():
     return jsonify({'status': 'error', 'message': 'Question not found or session expired'})
 
 @app.route('/feedback')
+@roles_required('candidate', 'admin')
 def feedback():
     """Show feedback page"""
     answers = session.get('answers', [])
@@ -290,6 +457,7 @@ def feedback():
                          integrity_summary=session.get('integrity_summary'))
 
 @app.route('/api/integrity-summary', methods=['POST'])
+@roles_required('candidate', 'admin')
 def integrity_summary():
     """Store aggregate browser-side camera signals; no images or biometric data are accepted."""
     data = request.get_json(silent=True) or {}
@@ -306,6 +474,7 @@ def integrity_summary():
     return jsonify({'status': 'success'})
 
 @app.route('/generate-report')
+@roles_required('candidate', 'admin')
 def generate_report():
     """Generate and display final report"""
     # Get session data
@@ -330,6 +499,7 @@ def generate_report():
 
 
 @app.route('/api/speech-status', methods=['POST'])
+@roles_required('candidate', 'admin')
 def speech_status():
     """Update speech recognition status"""
     data = request.json

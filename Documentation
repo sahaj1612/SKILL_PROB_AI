@@ -1,0 +1,483 @@
+SKILLPROB AI - RESUME-BASED INTERVIEW PRACTICE PLATFORM
+
+1. PROJECT OVERVIEW
+
+SkillProb AI is a web-based interview practice platform. A candidate can upload
+a resume, select an interview domain and experience level, and answer AI-generated
+interview questions using typed or spoken responses.
+
+The platform evaluates every answer, provides a suggested improved answer, and
+shows a final performance report. If the candidate enables the camera, the browser
+also produces local, privacy-aware visibility and attention signals. No video is
+recorded or uploaded.
+
+
+2. MAIN OBJECTIVE
+
+The main objective is to help candidates practise technical and behavioural
+interviews with structured, personalised feedback.
+
+The system can:
+
+- Accept resume text and supported resume files.
+- Generate interview questions based on the selected domain and experience level.
+- Accept typed and speech-recognised answers.
+- Score each answer for grammar, relevance, confidence, and STAR-method structure.
+- Give feedback and a better-answer suggestion after every question.
+- Ask a follow-up question when an answer is too short, vague, or lacks depth.
+- Provide optional local camera feedback about face visibility, eye visibility,
+  gaze near the screen, multiple faces, and poor lighting.
+- Produce a final interview feedback page and report.
+
+
+3. COMPLETE SYSTEM FLOW
+
+Candidate
+    |
+    v
+Upload Resume or Enter Resume Text
+    |
+    v
+Choose Domain and Experience Level
+    |
+    v
+AI Generates Interview Questions
+    |
+    v
+Interview Starts
+    |
+    +--> Optional Camera and Microphone Permissions
+    |
+    v
+Candidate Types or Speaks an Answer
+    |
+    v
+Answer Analysis
+    |
+    +--> Grammar score
+    +--> Relevance score
+    +--> Confidence score
+    +--> STAR-method score
+    +--> Filler-word count
+    +--> Feedback and suggested better answer
+    |
+    v
+Optional Follow-up Question
+    |
+    v
+Next Question
+    |
+    v
+Final Performance and Camera Check Summary
+
+
+4. RESUME INPUT
+
+The candidate may provide resume information by uploading a file or entering
+resume text. Supported upload formats are:
+
+- PDF
+- TXT
+- DOCX
+
+The extracted text is saved for the current interview session so the question
+generator can use it for interview context.
+
+
+5. INTERVIEW SETUP
+
+Before an interview begins, the candidate selects:
+
+- Domain, such as a technical area or job focus.
+- Experience level, such as beginner, intermediate, or experienced.
+
+These choices guide the difficulty and context of generated questions.
+
+
+6. AI-GENERATED QUESTIONS
+
+The platform uses Google Gemini when a GEMINI_API_KEY is configured. Gemini can
+generate questions using the resume context, selected domain, and experience level.
+
+If Gemini is unavailable, the application uses local fallback questions so the
+interview can still continue.
+
+Questions may be technical, behavioural, situational, or project-focused.
+
+
+7. ANSWER SUBMISSION
+
+Candidates can answer in either of two ways:
+
+- Type directly in the answer area.
+- Use browser speech recognition to speak the answer.
+
+When both typed text and a speech transcript are present, the system combines them
+without duplicating the same content.
+
+
+8. ANSWER EVALUATION
+
+Each submitted answer receives four scores out of 10:
+
+Grammar
+    Measures sentence clarity, structure, completion, and the effect of filler words.
+
+Relevance
+    Measures whether the response directly addresses the question and its key topic.
+
+Confidence
+    Estimates how clearly and completely the candidate communicates. It considers
+    answer detail, sentence structure, relevance, sentiment, and filler words.
+
+STAR Method
+    Measures whether a behavioural answer includes Situation, Task, Action, and Result.
+
+A higher score indicates a stronger answer in that area. The scores are practice
+feedback, not an official hiring decision.
+
+
+9. FEEDBACK AFTER EVERY QUESTION
+
+After every answer, the candidate sees:
+
+- Grammar, relevance, confidence, and STAR-method scores.
+- Filler-word count.
+- Personalised AI feedback.
+- A suggested better answer when available.
+- A follow-up question when more explanation is needed.
+- An optional camera-check summary and practical suggestions for that answer.
+
+
+10. FOLLOW-UP QUESTIONS
+
+The platform can ask an additional question when the answer is:
+
+- Short (generally fewer than 30 words).
+- Vague or unclear.
+- Missing depth or a concrete example.
+
+Example:
+
+Question:
+"Describe a difficult project you worked on."
+
+Candidate:
+"I made a web application with my team."
+
+Possible follow-up:
+"What was your specific responsibility, what challenge did you solve, and what
+was the result?"
+
+
+11. CAMERA CHECK
+
+The camera check is optional and runs in the browser only after the candidate gives
+camera permission. It analyses aggregate signals; it does not record or upload video.
+
+Signals shown after each answer can include:
+
+- Samples with no face detected.
+- Samples with more than one face.
+- Samples looking away from the screen.
+- Samples where eyes were not clearly visible.
+- Low-light or possible lens-obstruction samples.
+
+The platform presents these as coaching or review signals. They are not proof of
+misconduct and must not be treated as an automatic decision.
+
+
+12. MICROPHONE AND SPEECH RECOGNITION
+
+The microphone is optional. When enabled, browser speech recognition can create a
+transcript for the candidate's answer. The platform also counts common filler words,
+such as "um", "uh", "like", and "you know", in the submitted transcript.
+
+
+13. FINAL PERFORMANCE FEEDBACK
+
+At the end of the interview, the feedback page shows:
+
+- Average grammar, relevance, confidence, and STAR-method scores.
+- Question-by-question feedback.
+- Submitted answers and answer duration.
+- Filler-word counts.
+- The camera-check summary for the complete interview, if camera data was collected.
+
+
+14. TECHNOLOGY STACK
+
+Frontend:
+
+- HTML and Jinja templates
+- CSS
+- JavaScript
+- Tailwind CSS (CDN)
+- Font Awesome icons
+
+Backend:
+
+- Python
+- Flask
+- Flask-Session
+
+AI and language processing:
+
+- Google Gemini API (optional)
+- TextBlob sentiment analysis
+- NLTK
+
+Browser features:
+
+- Web Speech API for speech recognition
+- MediaPipe Face Landmarker for local camera checks
+- getUserMedia for camera and microphone access
+
+Data and files:
+
+- SQLite database
+- PyPDF2 for PDF text extraction
+- python-dotenv for environment configuration
+
+
+15. MAIN PROJECT FILES
+
+app.py
+    Flask routes, interview flow, answer-analysis API, and camera-summary API.
+
+ai_processor.py
+    Gemini question generation, answer evaluation, fallback evaluation, and report data.
+
+database.py
+    SQLite database setup and persistence for sessions, questions, and answers.
+
+report_generator.py
+    Generates detailed HTML/PDF-oriented interview reports.
+
+templates/
+    HTML pages for home, upload, setup, interview, feedback, and report screens.
+
+static/js/interview.js
+    Loads questions, submits answers, and displays per-question feedback.
+
+static/js/speech.js
+    Handles browser speech recognition and transcripts.
+
+static/js/camera.js
+    Handles optional camera/microphone controls and local camera-check signals.
+
+
+16. IMPORTANT PRIVACY PRINCIPLE
+
+Camera feedback is designed for interview practice. It reports only aggregate,
+observable signals and does not store or upload webcam video. A signal such as
+"looking away" or "more than one face" is not proof of cheating or misconduct.
+Human judgement is always required.
+
+
+17. PROJECT TITLE
+
+"SkillProb AI - Resume-Based Interview Practice and Feedback Platform"
+
+SHORT NAME:
+
+"SkillProb AI"
+
+
+18. ADMIN AND INTERVIEWER SETUP GUIDE
+
+This section explains how to enable OAuth sign-in, create the first administrator,
+assign roles, and use the interviewer review dashboard.
+
+
+18.1 REQUIRED SOFTWARE
+
+- Python 3.8 or later.
+- A virtual environment in the project folder.
+- Google OAuth credentials, GitHub OAuth credentials, or both.
+- Internet access while using Google/GitHub sign-in.
+
+
+18.2 INSTALL DEPENDENCIES
+
+Open PowerShell in the project folder and run:
+
+    cd D:\AI-Interview
+    .\venv\Scripts\python.exe -m pip install -r requirements.txt
+
+The Authlib package in requirements.txt enables Google and GitHub OAuth.
+
+
+18.3 CREATE THE ENVIRONMENT FILE
+
+The application reads credentials from a file named .env in the same folder as
+app.py:
+
+    D:\AI-Interview\.env
+
+The .env.example file is only a template. Values placed only in .env.example are
+not loaded by the application.
+
+Use this format in .env. Do not add spaces around the equals sign.
+
+    SECRET_KEY=replace-with-a-long-random-secret
+    GEMINI_API_KEY=optional-gemini-key
+    GOOGLE_CLIENT_ID=your-google-client-id
+    GOOGLE_CLIENT_SECRET=your-google-client-secret
+    GITHUB_CLIENT_ID=your-github-client-id
+    GITHUB_CLIENT_SECRET=your-github-client-secret
+    ADMIN_EMAILS=your-email@example.com
+    SESSION_COOKIE_SECURE=false
+
+Use a long random value for SECRET_KEY. Never upload .env to GitHub, because it
+contains secrets.
+
+
+18.4 CONFIGURE GOOGLE OAUTH
+
+1. Open Google Cloud Console.
+2. Create or select a Google Cloud project.
+3. Configure the OAuth consent screen.
+4. Create an OAuth Client ID with application type: Web application.
+5. Add this authorized redirect URI for local development:
+
+    http://127.0.0.1:5000/auth/google/callback
+
+6. Copy the Google Client ID and Client Secret to GOOGLE_CLIENT_ID and
+   GOOGLE_CLIENT_SECRET in .env.
+
+Do not choose the Desktop application type for this Flask web application.
+
+
+18.5 CONFIGURE GITHUB OAUTH
+
+1. Open GitHub Developer Settings.
+2. Create a new OAuth App.
+3. Use this homepage URL for local development:
+
+    http://127.0.0.1:5000
+
+4. Use this authorization callback URL:
+
+    http://127.0.0.1:5000/auth/github/callback
+
+5. Generate a client secret and copy its Client ID and Client Secret to
+   GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env.
+
+
+18.6 START THE APPLICATION
+
+Run:
+
+    cd D:\AI-Interview
+    .\venv\Scripts\python.exe app.py
+
+Then open:
+
+    http://127.0.0.1:5000
+
+If client ID and client secret values are present in .env, the Sign in page shows
+the configured Google and/or GitHub sign-in buttons.
+
+
+18.7 VERIFY OAUTH CONFIGURATION WITHOUT REVEALING SECRETS
+
+Open a second PowerShell window in D:\AI-Interview and run:
+
+    .\venv\Scripts\python.exe -c "from config import Config; print('Google ID:', bool(Config.GOOGLE_CLIENT_ID)); print('Google secret:', bool(Config.GOOGLE_CLIENT_SECRET)); print('GitHub ID:', bool(Config.GITHUB_CLIENT_ID)); print('GitHub secret:', bool(Config.GITHUB_CLIENT_SECRET))"
+
+All configured providers should show True for both their ID and secret.
+
+
+18.8 ROLES
+
+Candidate
+    Can sign in, upload a resume, configure an interview, answer questions, and
+    view their own current-session feedback.
+
+Interviewer
+    Can open the Interviewer Dashboard and review recorded interview sessions,
+    question text, submitted answers, durations, score breakdowns, and AI feedback.
+    An interviewer cannot assign roles.
+
+Admin
+    Has all interviewer permissions and can open User Administration to assign
+    candidate, interviewer, and admin roles. An admin cannot change their own role
+    from the web interface, which reduces the risk of accidentally removing all
+    administrator access.
+
+
+18.9 CREATE THE FIRST ADMINISTRATOR
+
+1. Put the email address you will use with Google or GitHub in ADMIN_EMAILS.
+   Multiple addresses may be separated with commas.
+2. Restart the Flask application.
+3. Sign in using that same verified provider email.
+4. The account is created with the admin role.
+5. The Admin navigation link appears after sign-in.
+
+Example:
+
+    ADMIN_EMAILS=admin@example.com,second-admin@example.com
+
+
+18.10 ASSIGN AN INTERVIEWER OR ADMIN ROLE
+
+1. Ask the user to sign in once. This creates their account in the database.
+2. Sign in using an administrator account.
+3. In the navigation bar, select Admin.
+4. Find the user in User Administration.
+5. Select Candidate, Interviewer, or Admin from the role list.
+6. Click Save.
+7. Ask the user to sign out and sign in again so their menu and permissions refresh.
+
+
+18.11 REVIEW INTERVIEWS AS AN INTERVIEWER
+
+1. Sign in using an account whose role is Interviewer or Admin.
+2. Select Interviewer in the navigation bar.
+3. The dashboard lists recorded sessions, candidates, domains, answer counts, and
+   average Grammar, Relevance, Confidence, and STAR scores.
+4. Select Review for a session.
+5. Review the question, candidate answer, answer duration, score breakdown, and
+   AI feedback for every submitted answer.
+
+The dashboard shows coaching data. It must not be used as the sole basis for an
+employment or academic decision.
+
+
+18.12 TROUBLESHOOTING
+
+Sign-in buttons do not appear
+    Check that credential values are in D:\AI-Interview\.env, not only in
+    .env.example. Restart Flask after editing .env.
+
+Google reports redirect URI mismatch
+    The Google Cloud OAuth client must be Web application type and must contain
+    exactly: http://127.0.0.1:5000/auth/google/callback
+
+GitHub reports redirect URI mismatch
+    The GitHub OAuth App callback URL must be exactly:
+    http://127.0.0.1:5000/auth/github/callback
+
+User cannot see Interviewer or Admin in the navigation
+    An administrator must assign the relevant role. The user must then sign out
+    and sign in again.
+
+No users appear in User Administration
+    A user appears only after completing their first OAuth sign-in.
+
+
+18.13 PRODUCTION DEPLOYMENT NOTES
+
+Before deployment:
+
+- Use a production WSGI server instead of Flask's debug server.
+- Serve the application through HTTPS.
+- Set SESSION_COOKIE_SECURE=true.
+- Replace local callback URLs with the exact HTTPS URLs of the deployed app in
+  both Google and GitHub OAuth settings.
+- Use a strong, unique SECRET_KEY stored in deployment secrets.
+- Keep .env outside source control.
+- Review data retention and privacy requirements before allowing interviewer access
+  to candidate answers.

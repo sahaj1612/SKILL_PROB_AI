@@ -1,5 +1,6 @@
 flask
 flask-session
+Authlib
 PyPDF2
 python-dotenv
 google-generativeai
